@@ -7,4 +7,13 @@ public class Ingredient {
     public String name;
     public float quantity;
     public String unit;
+
+    public Ingredient() {
+    }
+
+    public Ingredient(String name, float quantity, String unit) {
+        this.name = name;
+        this.quantity = quantity;
+        this.unit = unit;
+    }
 }
