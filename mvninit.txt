@@ -1,0 +1,4 @@
+mvn io.quarkus.platform:quarkus-maven-plugin:3.30.6:create \
+  -DprojectGroupId=uk.co.cstdev \
+  -DprojectArtifactId=recipie-service \
+  -Dextensions='rest,rest-jackson,messaging-kafka,junit5,hibernate-orm,jdbc-postgresql'

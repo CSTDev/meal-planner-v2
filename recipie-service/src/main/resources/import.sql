@@ -1,0 +1,10 @@
+drop table if exists recipe_ingredients;
+drop table if exists recipes;
+drop table if exists MyEntity;
+drop sequence if exists MyEntity_SEQ;
+create sequence MyEntity_SEQ start with 1 increment by 50;
+create table MyEntity (id bigint not null, field varchar(255), primary key (id));
+create table recipe_ingredients (quantity float4, recipe_id uuid not null, name varchar(255), unit varchar(255));
+create table recipes (cookTimeMinutes integer not null, prepTimeMinutes integer not null, servings integer not null, createdAt timestamp(6), scrapedAt timestamp(6), id uuid not null, description varchar(255), imageUrl varchar(255), title varchar(255), url varchar(255), instructions varchar(255) array, tags varchar(255) array, primary key (id));
+alter table if exists recipe_ingredients add constraint FKcqlw8sor5ut10xsuj3jnttkc foreign key (recipe_id) references recipes;
+insert into recipes (cookTimeMinutes, prepTimeMinutes, servings, id, title, description) values (10, 10, 4, '123e4567-e89b-12d3-a456-426614174000', 'Pancakes', 'Delicious fluffy pancakes');

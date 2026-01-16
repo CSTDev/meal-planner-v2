@@ -1,0 +1,2 @@
+# Latest version of recipie_scrapers that still has the gousto scraper
+recipe_scrapers == 14.61.0
