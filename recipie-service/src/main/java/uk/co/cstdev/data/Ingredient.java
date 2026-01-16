@@ -11,6 +11,12 @@ public class Ingredient {
     public Ingredient() {
     }
 
+    public Ingredient(String name) {
+        this.name = name;
+        this.quantity = 0;
+        this.unit = "";
+    }
+
     public Ingredient(String name, float quantity, String unit) {
         this.name = name;
         this.quantity = quantity;

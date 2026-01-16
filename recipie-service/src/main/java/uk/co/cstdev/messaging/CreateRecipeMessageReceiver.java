@@ -6,6 +6,7 @@ import org.eclipse.microprofile.reactive.messaging.Incoming;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import uk.co.cstdev.data.messaging.RecipeEvent;
 import uk.co.cstdev.data.messaging.RecipeScrapeCompleted;
 import uk.co.cstdev.service.RecipeService;
@@ -19,6 +20,7 @@ public class CreateRecipeMessageReceiver {
     RecipeService recipeService;
 
     @Incoming("recipes")
+    @Transactional
     public void receiveRecipe(RecipeEvent recipeEvent) {
         LOGGER.info("Received recipe event: " + recipeEvent);
 
