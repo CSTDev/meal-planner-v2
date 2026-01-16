@@ -11,8 +11,11 @@ public class KafkaTestResourceLifecycleManager implements QuarkusTestResourceLif
     @Override
     public Map<String, String> start() {
         Map<String, String> env = new HashMap<>();
-        Map<String, String> props1 = InMemoryConnector.switchIncomingChannelsToInMemory("recipes");
-        env.putAll(props1);
+        Map<String, String> incomingRecipes = InMemoryConnector.switchIncomingChannelsToInMemory("recipes");
+        Map<String, String> outgoingScrapeRequests = InMemoryConnector
+                .switchOutgoingChannelsToInMemory("scrape-requests");
+        env.putAll(incomingRecipes);
+        env.putAll(outgoingScrapeRequests);
         return env;
     }
 
