@@ -24,6 +24,10 @@ services:
     volumes:
       - ..:/workspace:cached
     command: sleep infinity
+    depends_on:
+      - java
+    environment:
+      API_GATEWAY_URL: http://java:8080
 
   postgres:
     image: postgres:15
