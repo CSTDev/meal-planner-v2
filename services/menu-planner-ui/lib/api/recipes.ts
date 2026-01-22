@@ -30,3 +30,21 @@ export async function scrapeRecipe(url: string): Promise<ScrapeRecipeResponse> {
 
     return response.json();
 }
+
+export async function searchRecipes(query: string) {
+    const response = await fetch(
+        `${API_BASE_URL}/api/recipes/search?q=${encodeURIComponent(query)}`,
+        {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error('Failed to search recipes');
+    }
+
+    return response.json();
+}
