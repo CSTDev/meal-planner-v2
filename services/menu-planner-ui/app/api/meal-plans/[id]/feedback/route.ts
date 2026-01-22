@@ -4,9 +4,12 @@ const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://localhost:8080';
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    context: { params: Promise<{ id: string }> }  // params is now a Promise
 ) {
     try {
+        // Await the params
+        const params = await context.params;
+
         const body = await request.json();
 
         const response = await fetch(
