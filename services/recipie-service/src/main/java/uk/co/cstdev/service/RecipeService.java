@@ -23,4 +23,8 @@ public class RecipeService {
         recipeRepository.persist(recipe);
     }
 
+    public List<Recipe> getRecommendations(int numRecipes) {
+        return recipeRepository.findRecommendations(numRecipes);
+    }
+
 }
