@@ -15,12 +15,14 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import uk.co.cstdev.data.MealPlan;
 import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.RecipeFeedback;
 import uk.co.cstdev.data.mealplan.MealPlanRequest;
 import uk.co.cstdev.data.mealplan.MealPlanResponse;
 import uk.co.cstdev.service.FeedbackService;
+import uk.co.cstdev.service.MealPlanService;
 import uk.co.cstdev.service.RecipeService;
 
 @Path("/api/meal-plans")
@@ -28,51 +30,57 @@ import uk.co.cstdev.service.RecipeService;
 @Produces(MediaType.APPLICATION_JSON)
 public class MealPlanResource {
 
-    private static final Logger LOGGER = Logger.getLogger(MealPlanResource.class);
+        private static final Logger LOGGER = Logger.getLogger(MealPlanResource.class);
 
-    @Inject
-    public RecipeService recipeService;
+        @Inject
+        public RecipeService recipeService;
 
-    @Inject
-    public FeedbackService feedbackService;
+        @Inject
+        public FeedbackService feedbackService;
 
-    @POST
-    public Response createMealPlan(MealPlanRequest request) {
-        // TODO this next....
-        // Placeholder implementation
-        return Response.ok(new MealPlanResponse(UUID.randomUUID().toString(), "test-user-123", "all", "active"))
-                .build();
-    }
+        @Inject
+        MealPlanService mealPlanService;
 
-    @GET
-    @Path("/{id}/recommendations")
-    public Response getMealPlanRecommendations(@PathParam("id") String id, @QueryParam("num_recipes") int numRecipes) {
-        LOGGER.infof("Fetching %d recommendations for meal plan ID: %s", numRecipes, id);
-        List<Recipe> recommendations = recipeService.getRecommendations(numRecipes);
-        List<RecipeDTO> dtos = recommendations.stream()
-                .map(RecipeDTO::from)
-                .toList();
-        return Response.ok(dtos).build();
-    }
+        @POST
+        public Response createMealPlan(MealPlanRequest request) {
+                MealPlan mealPlan = mealPlanService.createMealPlan(request);
+                MealPlanResponse response = new MealPlanResponse(mealPlan.id.toString(), mealPlan.userId.toString(),
+                                mealPlan.recipeSource,
+                                mealPlan.status);
+                return Response.ok(response)
+                                .build();
+        }
 
-    @POST
-    @Path("/{mealPlanId}/feedback")
-    public Response submitFeedback(
-            @PathParam("mealPlanId") String mealPlanId,
-            RecipeFeedback request) {
+        @GET
+        @Path("/{id}/recommendations")
+        public Response getMealPlanRecommendations(@PathParam("id") String id,
+                        @QueryParam("num_recipes") int numRecipes) {
+                LOGGER.infof("Fetching %d recommendations for meal plan ID: %s", numRecipes, id);
+                List<Recipe> recommendations = recipeService.getRecommendations(numRecipes);
+                List<RecipeDTO> dtos = recommendations.stream()
+                                .map(RecipeDTO::from)
+                                .toList();
+                return Response.ok(dtos).build();
+        }
 
-        LOGGER.infof("Received feedback for meal plan ID: %s, recipe ID: %s, action: %s",
-                mealPlanId, request.recipe_id().toString(), request.action());
+        @POST
+        @Path("/{mealPlanId}/feedback")
+        public Response submitFeedback(
+                        @PathParam("mealPlanId") String mealPlanId,
+                        RecipeFeedback request) {
 
-        UUID mealPlanUuid = UUID.fromString(mealPlanId);
+                LOGGER.infof("Received feedback for meal plan ID: %s, recipe ID: %s, action: %s",
+                                mealPlanId, request.recipe_id().toString(), request.action());
 
-        // For now, use a default user ID - in production this would come from
-        // authentication
-        UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+                UUID mealPlanUuid = UUID.fromString(mealPlanId);
 
-        feedbackService.processFeedback(userId, request.recipe_id(), mealPlanUuid, request.action());
+                // For now, use a default user ID - in production this would come from
+                // authentication
+                UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
-        return Response.ok().build();
-    }
+                feedbackService.processFeedback(userId, request.recipe_id(), mealPlanUuid, request.action());
+
+                return Response.ok().build();
+        }
 
 }
