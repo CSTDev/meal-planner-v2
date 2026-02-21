@@ -1,6 +1,5 @@
 {
     "java.compile.nullAnalysis.mode": "disabled",
     "java.configuration.updateBuildConfiguration": "interactive",
-    "remote.SSH.localServerDownload": "always",
-    "remote.SSH.useExecServer": "false" // Didn't work, investigate
+    "remote.ssh.localServerDownload": "always",
 }

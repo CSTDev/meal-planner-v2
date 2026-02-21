@@ -10,7 +10,7 @@ import jakarta.transaction.Transactional;
 public class FeedbackRepository implements PanacheRepository<UserRecipeInteraction> {
 
     @Transactional
-    public void saveFeedback(UUID userId, UUID recipeId, UUID mealPlanId, String interactionType) {
+    public void saveFeedback(UUID userId, UUID recipeId, UUID mealPlanId, FeedbackAction interactionType) {
         UserRecipeInteraction interaction = UserRecipeInteraction.create(userId, recipeId, mealPlanId, interactionType);
         persist(interaction);
     }

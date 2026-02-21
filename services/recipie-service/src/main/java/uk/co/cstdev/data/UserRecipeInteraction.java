@@ -45,7 +45,8 @@ public class UserRecipeInteraction extends PanacheEntityBase {
         this.interactionAt = Instant.now();
     }
 
-    public static UserRecipeInteraction create(UUID userId, UUID recipeId, UUID mealPlanId, String interactionType) {
-        return new UserRecipeInteraction(userId, recipeId, mealPlanId, interactionType);
+    public static UserRecipeInteraction create(UUID userId, UUID recipeId, UUID mealPlanId,
+            FeedbackAction interactionType) {
+        return new UserRecipeInteraction(userId, recipeId, mealPlanId, interactionType.name());
     }
 }

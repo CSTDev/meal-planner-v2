@@ -1,6 +1,7 @@
 package uk.co.cstdev.service;
 
 import java.util.List;
+import java.util.UUID;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -23,8 +24,8 @@ public class RecipeService {
         recipeRepository.persist(recipe);
     }
 
-    public List<Recipe> getRecommendations(int numRecipes) {
-        return recipeRepository.findRecommendations(numRecipes);
+    public List<Recipe> getRecommendations(int numRecipes, String mealPlanId) {
+        return recipeRepository.findRecommendations(numRecipes, UUID.fromString(mealPlanId));
     }
 
 }

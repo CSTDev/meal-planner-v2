@@ -51,18 +51,20 @@ public class MealPlanResource {
                                 .build();
         }
 
+        // TODO should this be here or it a RecommendationResource?
         @GET
         @Path("/{id}/recommendations")
         public Response getMealPlanRecommendations(@PathParam("id") String id,
                         @QueryParam("num_recipes") int numRecipes) {
                 LOGGER.infof("Fetching %d recommendations for meal plan ID: %s", numRecipes, id);
-                List<Recipe> recommendations = recipeService.getRecommendations(numRecipes);
+                List<Recipe> recommendations = recipeService.getRecommendations(numRecipes, id);
                 List<RecipeDTO> dtos = recommendations.stream()
                                 .map(RecipeDTO::from)
                                 .toList();
                 return Response.ok(dtos).build();
         }
 
+        // TODO should this be here or it a FeedbackResource?
         @POST
         @Path("/{mealPlanId}/feedback")
         public Response submitFeedback(

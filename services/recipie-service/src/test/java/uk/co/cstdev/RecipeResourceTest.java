@@ -4,6 +4,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.transaction.Transactional;
 import uk.co.cstdev.data.Recipe;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -16,6 +17,12 @@ class RecipeResourceTest {
     @BeforeEach
     @Transactional
     void setup() {
+        Recipe.deleteAll();
+    }
+
+    @AfterEach
+    @Transactional
+    void cleanup() {
         Recipe.deleteAll();
     }
 

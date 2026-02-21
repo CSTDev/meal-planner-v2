@@ -1,6 +1,7 @@
 package uk.co.cstdev.data;
 
 import java.util.List;
+import java.util.UUID;
 
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -13,7 +14,7 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
     @PersistenceContext
     EntityManager em;
 
-    public List<Recipe> findRecommendations(int numRecipes) {
+    public List<Recipe> findRecommendations(int numRecipes, UUID mealPlanId) {
         /*
          * String hql = """
          * SELECT r.*
@@ -58,17 +59,19 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
                 WHERE r.id NOT IN (
                     -- Exclude recipes already accepted in this meal plan
                     SELECT recipe_id FROM user_recipe_interactions
-                    WHERE interaction_type = 'accepted'
+                    WHERE interaction_type = 'ACCEPTED'
+                    AND meal_plan_id = :meal_plan_id
                 )
                 AND r.id NOT IN (
                     -- Exclude recipes rejected in this meal plan
                     SELECT recipe_id FROM user_recipe_interactions
-                    WHERE interaction_type = 'rejected'
+                    WHERE interaction_type = 'REJECTED'
+                    AND meal_plan_id = :meal_plan_id
                 )
                 AND r.id NOT IN (
                     -- Exclude recently shown recipes (last 30 days)
                     SELECT recipe_id FROM user_recipe_interactions
-                    WHERE interaction_at > NOW() - INTERVAL '30 days'
+                    WHERE interaction_at > NOW() - INTERVAL '90 days'
                 )
                 ORDER BY RANDOM()
                 LIMIT :num_recipes;
@@ -76,6 +79,7 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
 
         return em.createNativeQuery(hql, Recipe.class)
                 .setParameter("num_recipes", numRecipes)
+                .setParameter("meal_plan_id", mealPlanId)
                 .getResultList();
     }
 
