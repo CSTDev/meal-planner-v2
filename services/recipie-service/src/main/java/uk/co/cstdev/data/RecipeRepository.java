@@ -14,7 +14,7 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
     @PersistenceContext
     EntityManager em;
 
-    public List<Recipe> findRecommendations(int numRecipes, UUID mealPlanId) {
+    public List<Recipe> findRecommendations(int numRecipes, UUID mealPlanId, UUID userId) {
         /*
          * String hql = """
          * SELECT r.*
@@ -61,17 +61,20 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
                     SELECT recipe_id FROM user_recipe_interactions
                     WHERE interaction_type = 'ACCEPTED'
                     AND meal_plan_id = :meal_plan_id
+                    and user_id = :user_id
                 )
                 AND r.id NOT IN (
                     -- Exclude recipes rejected in this meal plan
                     SELECT recipe_id FROM user_recipe_interactions
                     WHERE interaction_type = 'REJECTED'
                     AND meal_plan_id = :meal_plan_id
+                    and user_id = :user_id
                 )
                 AND r.id NOT IN (
                     -- Exclude recently shown recipes (last 30 days)
                     SELECT recipe_id FROM user_recipe_interactions
                     WHERE interaction_at > NOW() - INTERVAL '90 days'
+                    and user_id = :user_id
                 )
                 ORDER BY RANDOM()
                 LIMIT :num_recipes;
@@ -80,6 +83,7 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
         return em.createNativeQuery(hql, Recipe.class)
                 .setParameter("num_recipes", numRecipes)
                 .setParameter("meal_plan_id", mealPlanId)
+                .setParameter("user_id", userId)
                 .getResultList();
     }
 

@@ -15,7 +15,6 @@ import jakarta.persistence.Table;
 @Table(name = "users")
 public class User extends PanacheEntityBase {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     public UUID id;
 
     String email;
@@ -38,6 +37,11 @@ public class User extends PanacheEntityBase {
 
         public Builder email(String email) {
             user.email = email;
+            return this;
+        }
+
+        public Builder id(UUID id) {
+            user.id = id;
             return this;
         }
 

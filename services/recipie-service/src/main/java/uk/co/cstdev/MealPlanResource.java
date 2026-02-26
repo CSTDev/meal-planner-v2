@@ -3,8 +3,10 @@ package uk.co.cstdev;
 import java.util.List;
 import java.util.UUID;
 
+import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.logging.Logger;
 
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
@@ -28,6 +30,7 @@ import uk.co.cstdev.service.RecipeService;
 @Path("/api/meal-plans")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
+@RolesAllowed("authenticated")
 public class MealPlanResource {
 
         private static final Logger LOGGER = Logger.getLogger(MealPlanResource.class);
@@ -41,10 +44,15 @@ public class MealPlanResource {
         @Inject
         MealPlanService mealPlanService;
 
+        @Inject
+        JsonWebToken jwt;
+
         @POST
         public Response createMealPlan(MealPlanRequest request) {
-                MealPlan mealPlan = mealPlanService.createMealPlan(request);
-                MealPlanResponse response = new MealPlanResponse(mealPlan.id.toString(), mealPlan.userId.toString(),
+                String userId = jwt.getSubject();
+
+                MealPlan mealPlan = mealPlanService.createMealPlan(request, userId);
+                MealPlanResponse response = new MealPlanResponse(mealPlan.id.toString(), userId,
                                 mealPlan.recipeSource,
                                 mealPlan.status);
                 return Response.ok(response)
@@ -56,8 +64,10 @@ public class MealPlanResource {
         @Path("/{id}/recommendations")
         public Response getMealPlanRecommendations(@PathParam("id") String id,
                         @QueryParam("num_recipes") int numRecipes) {
-                LOGGER.infof("Fetching %d recommendations for meal plan ID: %s", numRecipes, id);
-                List<Recipe> recommendations = recipeService.getRecommendations(numRecipes, id);
+                String userId = jwt.getSubject();
+                LOGGER.infof("Fetching %d recommendations for user=%s meal_plan_id=%s", numRecipes, userId, id);
+                List<Recipe> recommendations = recipeService.getRecommendations(numRecipes, id,
+                                UUID.fromString(userId));
                 List<RecipeDTO> dtos = recommendations.stream()
                                 .map(RecipeDTO::from)
                                 .toList();

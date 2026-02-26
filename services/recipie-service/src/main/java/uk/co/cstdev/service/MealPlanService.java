@@ -12,8 +12,8 @@ import uk.co.cstdev.data.mealplan.MealPlanRequest;
 public class MealPlanService {
 
     @Transactional
-    public MealPlan createMealPlan(MealPlanRequest request) {
-        MealPlan mealPlan = MealPlan.Builder.builder().userId(UUID.fromString(request.userId())).createdAt(new Date())
+    public MealPlan createMealPlan(MealPlanRequest request, String userId) {
+        MealPlan mealPlan = MealPlan.Builder.builder().userId(UUID.fromString(userId)).createdAt(new Date())
                 .recipeSource(request.recipeSource()).status("ACTIVE").build();
         mealPlan.persistAndFlush();
         return mealPlan;

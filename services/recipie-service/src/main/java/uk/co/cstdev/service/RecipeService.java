@@ -24,8 +24,8 @@ public class RecipeService {
         recipeRepository.persist(recipe);
     }
 
-    public List<Recipe> getRecommendations(int numRecipes, String mealPlanId) {
-        return recipeRepository.findRecommendations(numRecipes, UUID.fromString(mealPlanId));
+    public List<Recipe> getRecommendations(int numRecipes, String mealPlanId, UUID userId) {
+        return recipeRepository.findRecommendations(numRecipes, UUID.fromString(mealPlanId), userId);
     }
 
 }

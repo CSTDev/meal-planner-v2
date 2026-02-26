@@ -8,6 +8,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
+import io.quarkus.test.security.jwt.Claim;
+import io.quarkus.test.security.jwt.JwtSecurity;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -16,6 +18,8 @@ import org.junit.jupiter.api.Test;
 
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.security.TestSecurity;
+
 import io.restassured.common.mapper.TypeRef;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
@@ -36,318 +40,433 @@ import static io.restassured.RestAssured.given;
 @QuarkusTest
 public class MealPlanResourceTest {
 
-    @Inject
-    MealPlanService mealPlanService;
+        @Inject
+        MealPlanService mealPlanService;
 
-    @Inject
-    FeedbackService feedbackService;
+        @Inject
+        FeedbackService feedbackService;
 
-    @Inject
-    EntityManager entityManager;
+        @Inject
+        EntityManager entityManager;
 
-    private User user;
-    private MealPlan mealPlan;
-    private static List<Recipe> recipes;
+        private User user;
+        private MealPlan mealPlan;
+        private static List<Recipe> recipes;
+        public static final String USER_ID_STRING = "123e4567-e89b-12d3-a456-426614174000";
+        public static final UUID USER_ID = UUID.fromString(USER_ID_STRING);
 
-    @BeforeAll
-    public static void init() {
-        // Create some recipes
-        recipes = Arrays.asList(
-                Recipe.Builder.recipe().title("Pancakes").servings(4).build(),
-                Recipe.Builder.recipe().title("Waffles").servings(6).build(),
-                Recipe.Builder.recipe().title("French Toast").servings(2).build());
+        @BeforeAll
+        public static void init() {
+                // Create some recipes
+                recipes = Arrays.asList(
+                                Recipe.Builder.recipe().title("Pancakes").servings(4).build(),
+                                Recipe.Builder.recipe().title("Waffles").servings(6).build(),
+                                Recipe.Builder.recipe().title("French Toast").servings(2).build());
 
-        QuarkusTransaction.requiringNew().run(() -> {
-            Recipe.deleteAll();
-            UserRecipeInteraction.deleteAll();
-            MealPlan.deleteAll();
-            User.deleteAll();
-            recipes.forEach(recipe -> {
-                recipe.persist();
-            });
-        });
-
-    }
-
-    @AfterAll
-    public static void cleanDb() {
-        QuarkusTransaction.requiringNew().run(() -> {
-            UserRecipeInteraction.deleteAll();
-            UserRecipeInteraction.flush();
-            MealPlan.deleteAll();
-            MealPlan.flush();
-            recipes.forEach(recipe -> {
-                recipe.delete();
-            });
-        });
-    }
-
-    @BeforeEach
-    @Transactional
-    public void setup() {
-        user = User.Builder.builder()
-                .email("me@test.com")
-                .name("Test User")
-                .createdAt(new java.util.Date())
-                .build();
-        user.persistAndFlush();
-    }
-
-    @AfterEach
-    @Transactional
-    public void cleanUp() {
-        UserRecipeInteraction.deleteAll();
-        MealPlan.deleteAll();
-        user.delete();
-    }
-
-    @Test
-    public void testCreateMealPlan() {
-
-        // Check the user exists
-        User returnedUser = User.findById(user.id);
-        assertNotNull(returnedUser);
-
-        // Create the meal plan
-        MealPlanResponse response = given()
-                .when()
-                .contentType("application/json")
-                .body("""
-                        {
-                            "userId": "%s",
-                            "numRecipes": 2,
-                            "recipeSource": "all"
-                        }
-                        """.formatted(user.id))
-                .post("/api/meal-plans")
-                .then()
-                .statusCode(200)
-                .extract()
-                .as(MealPlanResponse.class);
-
-        mealPlan = MealPlan.findById(UUID.fromString(response.id()));
-        assertNotNull(mealPlan);
-    }
-
-    // Recommendation Tests
-    @Test
-    public void testGetRecommendationsForMealPlan() {
-        // Create a Meal Plan
-        MealPlanResponse response = given()
-                .when()
-                .contentType("application/json")
-                .body("""
-                        {
-                            "userId": "%s",
-                            "numRecipes": 2,
-                            "recipeSource": "all"
-                        }
-                        """.formatted(user.id))
-                .post("/api/meal-plans")
-                .then()
-                .statusCode(200)
-                .extract()
-                .as(MealPlanResponse.class);
-        mealPlan = MealPlan.findById(UUID.fromString(response.id()));
-        assertNotNull(mealPlan);
-
-        // Get recommendations
-        List<RecipeDTO> recommendations = given()
-                .when()
-                .contentType(MediaType.APPLICATION_JSON)
-                .get("/api/meal-plans/%s/recommendations?num_recipes=2".formatted(response.id()))
-                .then()
-                .statusCode(200)
-                .extract()
-                .as(new TypeRef<List<RecipeDTO>>() {
+                QuarkusTransaction.requiringNew().run(() -> {
+                        Recipe.deleteAll();
+                        UserRecipeInteraction.deleteAll();
+                        MealPlan.deleteAll();
+                        User.deleteAll();
+                        recipes.forEach(recipe -> {
+                                recipe.persist();
+                        });
                 });
-        assertEquals(2, recommendations.size());
 
-    }
+        }
 
-    @Test
-    public void testGetRecommendationsForMealPlanReturnsAsManyAsItCan() {
-        // Create a Meal Plan
-        MealPlanResponse response = given()
-                .when()
-                .contentType("application/json")
-                .body("""
-                        {
-                            "userId": "%s",
-                            "numRecipes": 5,
-                            "recipeSource": "all"
-                        }
-                        """.formatted(user.id))
-                .post("/api/meal-plans")
-                .then()
-                .statusCode(200)
-                .extract()
-                .as(MealPlanResponse.class);
-        mealPlan = MealPlan.findById(UUID.fromString(response.id()));
-        assertNotNull(mealPlan);
-
-        // Get recommendations
-        List<RecipeDTO> recommendations = given()
-                .when()
-                .contentType(MediaType.APPLICATION_JSON)
-                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
-                .then()
-                .statusCode(200)
-                .extract()
-                .as(new TypeRef<List<RecipeDTO>>() {
+        @AfterAll
+        public static void cleanDb() {
+                QuarkusTransaction.requiringNew().run(() -> {
+                        UserRecipeInteraction.deleteAll();
+                        UserRecipeInteraction.flush();
+                        MealPlan.deleteAll();
+                        MealPlan.flush();
+                        recipes.forEach(recipe -> {
+                                recipe.delete();
+                        });
                 });
-        // Returns only 3 as that's how many recipes we have seeded
-        assertEquals(3, recommendations.size());
-    }
+        }
 
-    @Test
-    public void testGetRecommendationsIgnoresRejectedMeals() {
-        // Create a Meal Plan
-        MealPlanResponse response = given()
-                .when()
-                .contentType("application/json")
-                .body("""
-                        {
-                            "userId": "%s",
-                            "numRecipes": 5,
-                            "recipeSource": "all"
-                        }
-                        """.formatted(user.id))
-                .post("/api/meal-plans")
-                .then()
-                .statusCode(200)
-                .extract()
-                .as(MealPlanResponse.class);
-        mealPlan = MealPlan.findById(UUID.fromString(response.id()));
-        assertNotNull(mealPlan);
+        @BeforeEach
+        @Transactional
+        public void setup() {
+                user = User.Builder.builder()
+                                .id(USER_ID)
+                                .email("me@test.com")
+                                .name("Test User")
+                                .createdAt(new java.util.Date())
+                                .build();
+                user.persistAndFlush();
+        }
 
-        feedbackService.processFeedback(user.id, recipes.getFirst().id, mealPlan.id, FeedbackAction.REJECTED);
+        @AfterEach
+        @Transactional
+        public void cleanUp() {
+                UserRecipeInteraction.deleteAll();
+                MealPlan.deleteAll();
+                user.delete();
+                User.deleteAll();
+        }
 
-        // Get recommendations
-        List<RecipeDTO> recommendations = given()
-                .when()
-                .contentType(MediaType.APPLICATION_JSON)
-                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
-                .then()
-                .statusCode(200)
-                .extract()
-                .as(new TypeRef<List<RecipeDTO>>() {
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testCreateMealPlan() {
+
+                // Check the user exists
+                User returnedUser = User.findById(user.id);
+                assertNotNull(returnedUser);
+
+                // Create the meal plan
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {
+                                                    "numRecipes": 2,
+                                                    "recipeSource": "all"
+                                                }
+                                                """.formatted(user.id))
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+
+                mealPlan = MealPlan.findById(UUID.fromString(response.id()));
+                assertNotNull(mealPlan);
+        }
+
+        // Recommendation Tests
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testGetRecommendationsForMealPlan() {
+                // Create a Meal Plan
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {
+                                                    "numRecipes": 2,
+                                                    "recipeSource": "all"
+                                                }
+                                                """.formatted(user.id))
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                mealPlan = MealPlan.findById(UUID.fromString(response.id()));
+                assertNotNull(mealPlan);
+
+                // Get recommendations
+                List<RecipeDTO> recommendations = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recommendations?num_recipes=2".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+                assertEquals(2, recommendations.size());
+
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testGetRecommendationsForMealPlanReturnsAsManyAsItCan() {
+                // Create a Meal Plan
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {
+                                                    "numRecipes": 5,
+                                                    "recipeSource": "all"
+                                                }
+                                                """.formatted(user.id))
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                mealPlan = MealPlan.findById(UUID.fromString(response.id()));
+                assertNotNull(mealPlan);
+
+                // Get recommendations
+                List<RecipeDTO> recommendations = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+                // Returns only 3 as that's how many recipes we have seeded
+                assertEquals(3, recommendations.size());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testGetRecommendationsIgnoresRejectedMeals() {
+                // Create a Meal Plan
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {
+                                                    "numRecipes": 5,
+                                                    "recipeSource": "all"
+                                                }
+                                                """.formatted(user.id))
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                mealPlan = MealPlan.findById(UUID.fromString(response.id()));
+                assertNotNull(mealPlan);
+
+                feedbackService.processFeedback(user.id, recipes.getFirst().id, mealPlan.id, FeedbackAction.REJECTED);
+
+                // Get recommendations
+                List<RecipeDTO> recommendations = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+                // Returns only 2 as that's how many recipes we have that aren't rejected
+                assertEquals(2, recommendations.size());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testGetRecommendationsIgnoresAcceptedMeals() {
+                // Create a Meal Plan
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {
+                                                    "numRecipes": 5,
+                                                    "recipeSource": "all"
+                                                }
+                                                """.formatted(user.id))
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                mealPlan = MealPlan.findById(UUID.fromString(response.id()));
+                assertNotNull(mealPlan);
+
+                feedbackService.processFeedback(user.id, recipes.getFirst().id, mealPlan.id, FeedbackAction.ACCEPTED);
+                feedbackService.processFeedback(user.id, recipes.getLast().id, mealPlan.id, FeedbackAction.ACCEPTED);
+
+                // Get recommendations
+                List<RecipeDTO> recommendations = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+                // Returns only 1 as that's how many recipes we have that aren't accepted
+                assertEquals(1, recommendations.size());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testGetRecommendationsExcludesMealsUsedInLast90Days() {
+                // Create a Meal Plan
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {
+                                                    "numRecipes": 5,
+                                                    "recipeSource": "all"
+                                                }
+                                                """.formatted(user.id))
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                mealPlan = MealPlan.findById(UUID.fromString(response.id()));
+                assertNotNull(mealPlan);
+
+                response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {
+                                                    "userId": "%s",
+                                                    "numRecipes": 5,
+                                                    "recipeSource": "all"
+                                                }
+                                                """.formatted(user.id))
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlan oldMealPlan = MealPlan.findById(UUID.fromString(response.id()));
+                assertNotNull(oldMealPlan);
+
+                // Simulate a meal being used in the last 90 days
+                QuarkusTransaction.requiringNew().run(() -> {
+                        var interactionDate = Instant.now().minusSeconds(60 * 60 * 24 * 30); // 30 days ago
+                        entityManager
+                                        .createNativeQuery(
+                                                        """
+                                                                        INSERT INTO user_recipe_interactions (user_id, recipe_id, meal_plan_id, interaction_type, interaction_at)
+                                                                        VALUES (?, ?, ?, 'ACCEPTED', ?)
+                                                                        """)
+                                        .setParameter(1, user.id)
+                                        .setParameter(2, recipes.getFirst().id)
+                                        .setParameter(3, oldMealPlan.id)
+                                        .setParameter(4, interactionDate)
+                                        .executeUpdate();
+                        entityManager.flush();
                 });
-        // Returns only 2 as that's how many recipes we have that aren't rejected
-        assertEquals(2, recommendations.size());
-    }
 
-    @Test
-    public void testGetRecommendationsIgnoresAcceptedMeals() {
-        // Create a Meal Plan
-        MealPlanResponse response = given()
-                .when()
-                .contentType("application/json")
-                .body("""
-                        {
-                            "userId": "%s",
-                            "numRecipes": 5,
-                            "recipeSource": "all"
-                        }
-                        """.formatted(user.id))
-                .post("/api/meal-plans")
-                .then()
-                .statusCode(200)
-                .extract()
-                .as(MealPlanResponse.class);
-        mealPlan = MealPlan.findById(UUID.fromString(response.id()));
-        assertNotNull(mealPlan);
+                // Get recommendations
+                List<RecipeDTO> recommendations = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+                // Returns only 2 as that's how many recipes we have that aren't accepted
+                assertEquals(2, recommendations.size());
 
-        feedbackService.processFeedback(user.id, recipes.getFirst().id, mealPlan.id, FeedbackAction.ACCEPTED);
-        feedbackService.processFeedback(user.id, recipes.getLast().id, mealPlan.id, FeedbackAction.ACCEPTED);
+        }
 
-        // Get recommendations
-        List<RecipeDTO> recommendations = given()
-                .when()
-                .contentType(MediaType.APPLICATION_JSON)
-                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
-                .then()
-                .statusCode(200)
-                .extract()
-                .as(new TypeRef<List<RecipeDTO>>() {
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        @Test
+        public void testOnlyInteractionsForCurrentUserAreConsidered() {
+                // Create interaction in last 90 days for another user
+                User secondUser = createSecondUser();
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {
+                                                    "userId": "%s",
+                                                    "numRecipes": 5,
+                                                    "recipeSource": "all"
+                                                }
+                                                """.formatted(secondUser.id))
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlan oldMealPlan = MealPlan.findById(UUID.fromString(response.id()));
+                assertNotNull(oldMealPlan);
+
+                // Simulate a meal being used in the last 90 days
+                QuarkusTransaction.requiringNew().run(() -> {
+                        var interactionDate = Instant.now().minusSeconds(60 * 60 * 24 * 30); // 30 days ago
+                        entityManager
+                                        .createNativeQuery(
+                                                        """
+                                                                        INSERT INTO user_recipe_interactions (user_id, recipe_id, meal_plan_id, interaction_type, interaction_at)
+                                                                        VALUES (?, ?, ?, 'ACCEPTED', ?)
+                                                                        """)
+                                        .setParameter(1, secondUser.id)
+                                        .setParameter(2, recipes.getFirst().id)
+                                        .setParameter(3, oldMealPlan.id)
+                                        .setParameter(4, interactionDate)
+                                        .executeUpdate();
+                        entityManager.flush();
                 });
-        // Returns only 1 as that's how many recipes we have that aren't accepted
-        assertEquals(1, recommendations.size());
-    }
 
-    @Test
-    public void testGetRecommendationsExcludesMealsUsedInLast90Days() {
-        // Create a Meal Plan
-        MealPlanResponse response = given()
-                .when()
-                .contentType("application/json")
-                .body("""
-                        {
-                            "userId": "%s",
-                            "numRecipes": 5,
-                            "recipeSource": "all"
-                        }
-                        """.formatted(user.id))
-                .post("/api/meal-plans")
-                .then()
-                .statusCode(200)
-                .extract()
-                .as(MealPlanResponse.class);
-        mealPlan = MealPlan.findById(UUID.fromString(response.id()));
-        assertNotNull(mealPlan);
+                // Create new meal plan
+                response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {
+                                                    "userId": "%s",
+                                                    "numRecipes": 5,
+                                                    "recipeSource": "all"
+                                                }
+                                                """.formatted(user.id))
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                mealPlan = MealPlan.findById(UUID.fromString(response.id()));
+                assertNotNull(mealPlan);
 
-        response = given()
-                .when()
-                .contentType("application/json")
-                .body("""
-                        {
-                            "userId": "%s",
-                            "numRecipes": 5,
-                            "recipeSource": "all"
-                        }
-                        """.formatted(user.id))
-                .post("/api/meal-plans")
-                .then()
-                .statusCode(200)
-                .extract()
-                .as(MealPlanResponse.class);
-        MealPlan oldMealPlan = MealPlan.findById(UUID.fromString(response.id()));
-        assertNotNull(oldMealPlan);
+                // Get recommendations
+                List<RecipeDTO> recommendations = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+                // Returns all 3 as they're available for this user
+                assertEquals(3, recommendations.size());
 
-        // Simulate a meal being used in the last 90 days
-        QuarkusTransaction.requiringNew().run(() -> {
-            var interactionDate = Instant.now().minusSeconds(60 * 60 * 24 * 30); // 30 days ago
-            entityManager
-                    .createNativeQuery(
-                            """
-                                    INSERT INTO user_recipe_interactions (user_id, recipe_id, meal_plan_id, interaction_type, interaction_at)
-                                    VALUES (?, ?, ?, 'ACCEPTED', ?)
-                                    """)
-                    .setParameter(1, user.id)
-                    .setParameter(2, recipes.getFirst().id)
-                    .setParameter(3, oldMealPlan.id)
-                    .setParameter(4, interactionDate)
-                    .executeUpdate();
-            entityManager.flush();
-        });
+        }
 
-        // Get recommendations
-        List<RecipeDTO> recommendations = given()
-                .when()
-                .contentType(MediaType.APPLICATION_JSON)
-                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
-                .then()
-                .statusCode(200)
-                .extract()
-                .as(new TypeRef<List<RecipeDTO>>() {
-                });
-        // Returns only 2 as that's how many recipes we have that aren't accepted
-        assertEquals(2, recommendations.size());
+        @Transactional
+        User createSecondUser() {
+                User user = User.Builder.builder()
+                                .id(UUID.randomUUID())
+                                .email("second@test.com")
+                                .name("Second Test User")
+                                .createdAt(new java.util.Date())
+                                .build();
+                user.persistAndFlush();
+                return user;
+        }
 
-    }
-
-    // TODO: Add test to ensure that interactions are only considered for the
-    // relevant user.
-
-    // End RecommendationTests
+        // End RecommendationTests
 }
