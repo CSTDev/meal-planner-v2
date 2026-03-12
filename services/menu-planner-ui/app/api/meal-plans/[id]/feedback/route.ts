@@ -1,15 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://localhost:8080';
 
 export async function POST(
     request: NextRequest,
-    context: { params: Promise<{ id: string }> }  // params is now a Promise
+    context: { params: Promise<{ id: string }> }
 ) {
     try {
-        // Await the params
-        const params = await context.params;
+        // Get Supabase session
+        const supabase = await createClient();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
+        if (sessionError || !session) {
+            return NextResponse.json(
+                { message: 'Unauthorized - No valid session' },
+                { status: 401 }
+            );
+        }
+
+        const params = await context.params;
         const body = await request.json();
 
         const response = await fetch(
@@ -18,6 +28,7 @@ export async function POST(
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`, // ✅ Add JWT token
                 },
                 body: JSON.stringify(body),
             }

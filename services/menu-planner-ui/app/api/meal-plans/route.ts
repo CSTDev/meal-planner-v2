@@ -1,29 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://localhost:8080';
 
 export async function POST(request: NextRequest) {
     try {
+        // Get Supabase session
+        const supabase = await createClient();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError || !session) {
+            return NextResponse.json(
+                { message: 'Unauthorized - No valid session' },
+                { status: 401 }
+            );
+        }
+
         const body = await request.json();
-        const { num_recipes, recipe_source } = body;
 
-        // TODO: Get actual user ID from authentication
-        const userId = 'test-user-123';
-
+        // Forward to Java backend with JWT token
         const response = await fetch(`${API_GATEWAY_URL}/api/meal-plans`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`, // ✅ Add JWT token
             },
             body: JSON.stringify({
-                user_id: userId,
-                num_recipes,
-                recipe_source,
+                num_recipes: body.num_recipes,
+                recipe_source: body.recipe_source,
             }),
         });
 
         if (!response.ok) {
-            throw new Error('Failed to create meal plan');
+            const errorText = await response.text();
+            console.error('Backend error:', errorText);
+            throw new Error(`Backend returned ${response.status}`);
         }
 
         const data = await response.json();

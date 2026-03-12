@@ -1,15 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
 const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://localhost:8080';
 
 export async function GET(
     request: NextRequest,
-    context: { params: Promise<{ id: string }> }  // params is now a Promise
+    context: { params: Promise<{ id: string }> }
 ) {
     try {
-        // Await the params
-        const params = await context.params;
+        // Get Supabase session
+        const supabase = await createClient();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
+        if (sessionError || !session) {
+            return NextResponse.json(
+                { message: 'Unauthorized - No valid session' },
+                { status: 401 }
+            );
+        }
+
+        const params = await context.params;
         const searchParams = request.nextUrl.searchParams;
         const numRecipes = searchParams.get('num_recipes') || '5';
 
@@ -19,12 +29,15 @@ export async function GET(
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`, // ✅ Add JWT token
                 },
             }
         );
 
         if (!response.ok) {
-            throw new Error('Failed to get recommendations');
+            const errorText = await response.text();
+            console.error('Backend error:', errorText);
+            throw new Error(`Backend returned ${response.status}`);
         }
 
         const data = await response.json();
