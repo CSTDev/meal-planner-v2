@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 
 const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://localhost:8080';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
     try {
         // const searchParams = request.nextUrl.searchParams;
         // const query = searchParams.get('q');
@@ -38,7 +38,8 @@ export async function GET(request: NextRequest) {
         );
 
         if (!response.ok) {
-            throw new Error('Failed to search recipes');
+            const body = await response.text();
+            throw new Error(`Backend returned ${response.status}: ${body}`);
         }
 
         const data = await response.json();

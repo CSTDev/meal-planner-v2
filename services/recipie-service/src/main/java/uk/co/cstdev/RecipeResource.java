@@ -5,7 +5,7 @@ import java.util.UUID;
 
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
-import jakarta.annotation.security.RolesAllowed;
+import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
@@ -19,7 +19,7 @@ import uk.co.cstdev.service.RecipeService;
 @Path("/api/recipes")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
-@RolesAllowed("authenticated")
+@Authenticated
 public class RecipeResource {
 
     @Inject

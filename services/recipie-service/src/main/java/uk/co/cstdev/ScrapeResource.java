@@ -7,7 +7,7 @@ import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 
-import jakarta.annotation.security.RolesAllowed;
+import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
@@ -31,7 +31,7 @@ public class ScrapeResource {
     JsonWebToken jwt;
 
     @POST
-    @RolesAllowed("authenticated")
+    @Authenticated
     public Response ScrapeRecipe(ScrapeRequest url) {
         String userId = jwt.getSubject();
         scrapeRequestEmitter.send(new RecipeScrapeRequested(
