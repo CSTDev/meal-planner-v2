@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
         }
 
         const response = await fetch(
-            `${API_GATEWAY_URL}/api/recipes}`,
+            `${API_GATEWAY_URL}/api/recipes`,
             {
                 method: 'GET',
                 headers: {

@@ -24,14 +24,13 @@ export async function middleware(request: NextRequest) {
         }
     );
 
-    // Refresh session if expired
-    await supabase.auth.getSession();
-
     const { pathname } = request.nextUrl;
 
     // Public routes that don't need authentication
-    const publicRoutes = ['/login', '/signup', '/'];
-    const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+    const isPublicRoute =
+        pathname === '/' ||
+        pathname.startsWith('/login') ||
+        pathname.startsWith('/signup');
 
     if (isPublicRoute) {
         return supabaseResponse;

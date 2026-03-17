@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, [supabase]);
 
     const signIn = async (email: string, password: string) => {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
             email,
             password,
         });
@@ -56,12 +56,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             throw error;
         }
 
-        router.push('/meal-plan');
-        router.refresh();
+        window.location.href = '/meal-plan';
     };
 
     const signUp = async (email: string, password: string, name: string) => {
-        const { data, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
             email,
             password,
             options: {
