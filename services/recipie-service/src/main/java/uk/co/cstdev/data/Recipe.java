@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
+import jakarta.persistence.Column;
 import jakarta.persistence.JoinColumn;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.CollectionTable;
@@ -36,6 +37,9 @@ public class Recipe extends PanacheEntityBase {
     public String imageUrl;
     public Date createdAt;
     public Date scrapedAt;
+
+    @Column(name = "scraped_by_user_id")
+    public UUID scrapedByUserId;
 
     // Builder
     public static class Builder {
@@ -145,6 +149,11 @@ public class Recipe extends PanacheEntityBase {
 
         public Builder scrapedAt(Date scrapedAt) {
             recipe.scrapedAt = scrapedAt;
+            return this;
+        }
+
+        public Builder scrapedByUserId(UUID userId) {
+            recipe.scrapedByUserId = userId;
             return this;
         }
 

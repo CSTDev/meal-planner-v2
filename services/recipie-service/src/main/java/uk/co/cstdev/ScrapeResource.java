@@ -3,10 +3,12 @@ package uk.co.cstdev;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
-import org.eclipse.microprofile.reactive.messaging.Outgoing;
 
+import jakarta.annotation.security.RolesAllowed;
+import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -25,16 +27,18 @@ public class ScrapeResource {
     @Channel("scrape-requests")
     Emitter<RecipeScrapeRequested> scrapeRequestEmitter;
 
+    @Inject
+    JsonWebToken jwt;
+
     @POST
+    @RolesAllowed("authenticated")
     public Response ScrapeRecipe(ScrapeRequest url) {
+        String userId = jwt.getSubject();
         scrapeRequestEmitter.send(new RecipeScrapeRequested(
-                UUID.randomUUID().toString(), // eventId
+                UUID.randomUUID().toString(),
                 Instant.now(),
-                new EventMetadata( // metadata
-                        "recipe-service",
-                        UUID.randomUUID().toString(),
-                        "user-1"),
-                url.url(), "user-1"));
+                new EventMetadata("recipe-service", UUID.randomUUID().toString(), userId),
+                url.url(), userId));
         return Response.ok().build();
     }
 

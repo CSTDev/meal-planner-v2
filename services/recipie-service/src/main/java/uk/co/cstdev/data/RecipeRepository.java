@@ -14,6 +14,10 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
     @PersistenceContext
     EntityManager em;
 
+    public List<Recipe> findByUserId(UUID userId) {
+        return list("scrapedByUserId", userId);
+    }
+
     public List<Recipe> findRecommendations(int numRecipes, UUID mealPlanId, UUID userId) {
         /*
          * String hql = """
