@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
         hostname: "production-media.gousto.co.uk",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "s3-eu-west-1.amazonaws.com",
+        pathname: "/**"
+      }
     ],
   },
 };
