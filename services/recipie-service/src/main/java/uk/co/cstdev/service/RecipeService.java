@@ -1,5 +1,6 @@
 package uk.co.cstdev.service;
 
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,6 +23,8 @@ public class RecipeService {
 
     public void addRecipe(Recipe recipe, UUID userId) {
         recipe.scrapedByUserId = userId;
+        recipe.createdAt = new Date();
+        recipe.scrapedAt = new Date();
         recipeRepository.persist(recipe);
     }
 
