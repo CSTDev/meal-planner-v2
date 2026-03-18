@@ -5,6 +5,7 @@ Consumes RecipeScrapeRequested events and publishes RecipeScrapeCompleted events
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
@@ -14,6 +15,91 @@ import os
 
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import KafkaError
+
+_UNITS = {
+    'cups', 'cup', 'c',
+    'tablespoons', 'tablespoon', 'tbsp', 'tbs',
+    'teaspoons', 'teaspoon', 'tsp',
+    'ounces', 'ounce', 'oz',
+    'pounds', 'pound', 'lbs', 'lb',
+    'grams', 'gram', 'g',
+    'kilograms', 'kilogram', 'kg',
+    'milliliters', 'milliliter', 'ml',
+    'liters', 'liter', 'l',
+    'pints', 'pint', 'pt',
+    'quarts', 'quart', 'qt',
+    'gallons', 'gallon',
+    'bunches', 'bunch',
+    'cloves', 'clove',
+    'slices', 'slice',
+    'pieces', 'piece',
+    'cans', 'can',
+    'packages', 'package', 'pkg',
+    'sticks', 'stick',
+    'pinches', 'pinch',
+    'dashes', 'dash',
+    'handfuls', 'handful',
+    'sprigs', 'sprig',
+    'heads', 'head',
+    'inches', 'inch',
+    'links', 'link',
+}
+
+_UNICODE_FRACTIONS = {
+    '½': '1/2', '⅓': '1/3', '⅔': '2/3', '¼': '1/4', '¾': '3/4',
+    '⅕': '1/5', '⅖': '2/5', '⅗': '3/5', '⅘': '4/5', '⅙': '1/6',
+    '⅚': '5/6', '⅛': '1/8', '⅜': '3/8', '⅝': '5/8', '⅞': '7/8',
+}
+
+
+def _replace_unicode_fractions(s: str) -> str:
+    for frac, replacement in _UNICODE_FRACTIONS.items():
+        s = s.replace(frac, replacement)
+    return s
+
+
+def _parse_quantity(s: str) -> float:
+    s = s.strip()
+    parts = s.split()
+    if len(parts) == 2 and '/' in parts[1]:
+        whole = float(parts[0])
+        num, den = parts[1].split('/')
+        return whole + float(num) / float(den)
+    if '/' in s:
+        num, den = s.split('/')
+        return float(num.strip()) / float(den.strip())
+    return float(s)
+
+
+def parse_ingredient(ingredient_str: str) -> dict:
+    """Parse an ingredient string into quantity, unit, and name."""
+    text = _replace_unicode_fractions(ingredient_str.strip())
+
+    quantity = 0.0
+    qty_match = re.match(r'^(\d+(?:\s+\d+/\d+|\.\d+|/\d+)?)', text)
+    if qty_match:
+        try:
+            quantity = _parse_quantity(qty_match.group(1))
+        except (ValueError, ZeroDivisionError):
+            quantity = 0.0
+        text = text[qty_match.end():].strip()
+
+    unit = ''
+    words = text.split()
+    if words and words[0].lower().rstrip('.') in _UNITS:
+        unit = words[0]
+        text = ' '.join(words[1:]).strip()
+
+    return {'quantity': quantity, 'unit': unit, 'name': text or ingredient_str}
+
+
+def parse_servings(yields_str) -> int:
+    """Extract the first number from a yields string like '4 servings' or 'Serves 4'."""
+    if not yields_str:
+        return 0
+    match = re.search(r'\d+', str(yields_str))
+    return int(match.group()) if match else 0
+
 
 # Configure logging
 logging.basicConfig(
@@ -35,12 +121,12 @@ class EventMetadata:
 class RecipeData:
     title: str
     description: Optional[str]
-    ingredients: List[str]
+    ingredients: List[dict]
     instructions: List[str]
     prep_time: Optional[int]
     cook_time: Optional[int]
     total_time: Optional[int]
-    servings: Optional[str]
+    servings: int
     image_url: Optional[str]
     canonical_url: str
     host: str
@@ -210,13 +296,12 @@ class RecipeScraperService:
                 recipe_data = RecipeData(
                     title=scraped_data.get('title', 'Unknown Recipe'),
                     description=scraped_data.get('description'),
-                    ingredients=scraped_data.get('ingredients', []),
-                    instructions=scraped_data.get(
-                        'instructions_list', []),
-                    prep_time=None,  # Not in scraped data
-                    cook_time=None,  # Not in scraped data
+                    ingredients=[parse_ingredient(i) for i in scraped_data.get('ingredients', [])],
+                    instructions=scraped_data.get('instructions_list', []),
+                    prep_time=None,
+                    cook_time=None,
                     total_time=scraped_data.get('total_time'),
-                    servings="2",  # scraped_data.get('yields'),
+                    servings=parse_servings(scraped_data.get('yields')),
                     image_url=scraped_data.get('image'),
                     canonical_url=scraped_data.get('canonical_url', url),
                     host=scraped_data.get('host', ''),
