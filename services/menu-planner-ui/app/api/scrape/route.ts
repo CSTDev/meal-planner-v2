@@ -1,3 +1,4 @@
+import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 // This would typically come from environment variables
@@ -5,6 +6,17 @@ const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://localhost:8080';
 
 export async function POST(request: NextRequest) {
     try {
+         // Get Supabase session
+        const supabase = await createClient();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError || !session) {
+            return NextResponse.json(
+                { message: 'Unauthorized - No valid session' },
+                { status: 401 }
+            );
+        }
+
         const body = await request.json();
         const { url } = body;
 
@@ -26,17 +38,13 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // TODO: Get actual user ID from authentication
-        const userId = 'test-user-123'; // Placeholder
-
         // Forward to API Gateway
         const response = await fetch(`${API_GATEWAY_URL}/api/scrape`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                // Add authentication headers here if needed
-                // 'Authorization': `Bearer ${token}`,
-            },
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                },
             body: JSON.stringify({
                 url,
                 //user_id: userId,
