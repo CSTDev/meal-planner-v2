@@ -3,11 +3,18 @@ import { createClient } from '@/lib/supabase/server';
 
 const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://localhost:8080';
 
-export async function GET(
-    request: NextRequest,
-    context: { params: Promise<{ id: string }> }
-) {
+export async function GET(_request: NextRequest) {
     try {
+        // const searchParams = request.nextUrl.searchParams;
+        // const query = searchParams.get('q');
+
+        // if (!query) {
+        //     return NextResponse.json(
+        //         { message: 'Query parameter required' },
+        //         { status: 400 }
+        //     );
+        // }
+
         // Get Supabase session
         const supabase = await createClient();
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -19,33 +26,28 @@ export async function GET(
             );
         }
 
-        const params = await context.params;
-        const searchParams = request.nextUrl.searchParams;
-        const numRecipes = searchParams.get('num_recipes') || '5';
-
         const response = await fetch(
-            `${API_GATEWAY_URL}/api/meal-plans/${params.id}/recommendations?num_recipes=${numRecipes}`,
+            `${API_GATEWAY_URL}/api/recipes`,
             {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`, // ✅ Add JWT token
+                    'Authorization': `Bearer ${session.access_token}`,
                 },
             }
         );
 
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Backend error:', errorText);
-            throw new Error(`Backend returned ${response.status}`);
+            const body = await response.text();
+            throw new Error(`Backend returned ${response.status}: ${body}`);
         }
 
         const data = await response.json();
         return NextResponse.json(data);
     } catch (error) {
-        console.error('Error getting recommendations:', error);
+        console.error('Error searching recipes:', error);
         return NextResponse.json(
-            { message: 'Failed to get recommendations' },
+            { message: 'Failed to search recipes' },
             { status: 500 }
         );
     }

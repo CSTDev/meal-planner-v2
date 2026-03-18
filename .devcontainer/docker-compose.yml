@@ -29,16 +29,16 @@ services:
     environment:
       API_GATEWAY_URL: http://java:8080
 
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: recipes
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+  # postgres:
+  #   image: postgres:15
+  #   environment:
+  #     POSTGRES_DB: recipes
+  #     POSTGRES_USER: admin
+  #     POSTGRES_PASSWORD: password
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
 
   kafka:
     image: apache/kafka:latest

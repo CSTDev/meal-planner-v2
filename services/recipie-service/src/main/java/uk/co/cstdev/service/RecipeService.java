@@ -20,8 +20,13 @@ public class RecipeService {
         return recipeRepository.listAll();
     }
 
-    public void addRecipe(Recipe recipe) {
+    public void addRecipe(Recipe recipe, UUID userId) {
+        recipe.scrapedByUserId = userId;
         recipeRepository.persist(recipe);
+    }
+
+    public List<Recipe> getRecipesForUser(UUID userId) {
+        return recipeRepository.findByUserId(userId);
     }
 
     public List<Recipe> getRecommendations(int numRecipes, String mealPlanId, UUID userId) {

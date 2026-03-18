@@ -1,5 +1,6 @@
 package uk.co.cstdev.messaging;
 
+import java.util.UUID;
 import java.util.logging.Logger;
 
 import org.eclipse.microprofile.reactive.messaging.Incoming;
@@ -26,7 +27,7 @@ public class CreateRecipeMessageReceiver {
 
         switch (recipeEvent) {
             case RecipeScrapeCompleted req -> {
-                recipeService.addRecipe(req.recipeData());
+                recipeService.addRecipe(req.recipeData(), UUID.fromString(req.userId()));
             }
             default -> LOGGER.warning("Unhandled recipe event type: " + recipeEvent.getClass().getName());
         }
