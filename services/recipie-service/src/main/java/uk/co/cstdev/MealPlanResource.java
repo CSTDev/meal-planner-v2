@@ -6,7 +6,7 @@ import java.util.UUID;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.logging.Logger;
 
-import jakarta.annotation.security.RolesAllowed;
+import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
@@ -30,7 +30,7 @@ import uk.co.cstdev.service.RecipeService;
 @Path("/api/meal-plans")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
-@RolesAllowed("authenticated")
+@Authenticated
 public class MealPlanResource {
 
         private static final Logger LOGGER = Logger.getLogger(MealPlanResource.class);
