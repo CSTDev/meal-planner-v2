@@ -3,6 +3,9 @@ package uk.co.cstdev;
 import java.util.UUID;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.logging.Logger;
 
 import jakarta.inject.Inject;
@@ -20,6 +23,7 @@ import uk.co.cstdev.service.UserService;
 @Path("/internal/users")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
+@Tag(name = "Internal - Users", description = "Internal endpoints for Supabase user synchronisation (requires X-Internal-Secret header)")
 public class UserResource {
 
     private static final Logger LOGGER = Logger.getLogger(UserResource.class);
@@ -34,6 +38,9 @@ public class UserResource {
     }
 
     @POST
+    @Operation(summary = "Upsert user", description = "Creates or updates a user record from a Supabase auth event")
+    @APIResponse(responseCode = "200", description = "User upserted")
+    @APIResponse(responseCode = "401", description = "Missing or invalid X-Internal-Secret header")
     public Response upsertUser(@HeaderParam("X-Internal-Secret") String authHeader, UpsertRequest request) {
         if (!isAuthorized(authHeader)) {
             return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -60,6 +67,9 @@ public class UserResource {
 
     @DELETE
     @Path("/{id}")
+    @Operation(summary = "Delete user", description = "Removes a user record when the corresponding Supabase auth user is deleted")
+    @APIResponse(responseCode = "204", description = "User deleted")
+    @APIResponse(responseCode = "401", description = "Missing or invalid X-Internal-Secret header")
     public Response deleteUser(@HeaderParam("X-Internal-Secret") String authHeader, @PathParam("id") String id) {
         if (!isAuthorized(authHeader)) {
             return Response.status(Response.Status.UNAUTHORIZED).build();

@@ -6,6 +6,10 @@ import java.util.UUID;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.logging.Logger;
 
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+
 import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
@@ -31,6 +35,7 @@ import uk.co.cstdev.service.RecipeService;
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
 @Authenticated
+@Tag(name = "Meal Plans", description = "Operations for creating meal plans and retrieving recommendations")
 public class MealPlanResource {
 
         private static final Logger LOGGER = Logger.getLogger(MealPlanResource.class);
@@ -48,6 +53,9 @@ public class MealPlanResource {
         JsonWebToken jwt;
 
         @POST
+        @Operation(summary = "Create a meal plan", description = "Creates a new meal plan for the authenticated user")
+        @APIResponse(responseCode = "200", description = "Meal plan created")
+        @APIResponse(responseCode = "401", description = "Unauthorized")
         public Response createMealPlan(MealPlanRequest request) {
                 String userId = jwt.getSubject();
 
@@ -62,6 +70,9 @@ public class MealPlanResource {
         // TODO should this be here or it a RecommendationResource?
         @GET
         @Path("/{id}/recommendations")
+        @Operation(summary = "Get recipe recommendations", description = "Returns recipe recommendations for a given meal plan")
+        @APIResponse(responseCode = "200", description = "List of recommended recipes")
+        @APIResponse(responseCode = "401", description = "Unauthorized")
         public Response getMealPlanRecommendations(@PathParam("id") String id,
                         @QueryParam("num_recipes") int numRecipes) {
                 String userId = jwt.getSubject();
@@ -77,6 +88,9 @@ public class MealPlanResource {
         // TODO should this be here or it a FeedbackResource?
         @POST
         @Path("/{mealPlanId}/feedback")
+        @Operation(summary = "Submit recipe feedback", description = "Records an accept/reject/view interaction for a recipe within a meal plan")
+        @APIResponse(responseCode = "200", description = "Feedback recorded")
+        @APIResponse(responseCode = "401", description = "Unauthorized")
         public Response submitFeedback(
                         @PathParam("mealPlanId") String mealPlanId,
                         RecipeFeedback request) {

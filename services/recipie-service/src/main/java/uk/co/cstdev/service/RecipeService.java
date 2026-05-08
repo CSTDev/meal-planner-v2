@@ -4,6 +4,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import uk.co.cstdev.data.Recipe;
@@ -15,7 +18,21 @@ public class RecipeService {
     @Inject
     public RecipeRepository recipeRepository;
 
-    // Service methods to manage recipes would go here
+    @Inject
+    MeterRegistry meterRegistry;
+
+    private Counter recipesAddedCounter;
+    private Timer listRecipesTimer;
+
+    @jakarta.annotation.PostConstruct
+    void initMetrics() {
+        recipesAddedCounter = Counter.builder("recipes.added.total")
+                .description("Total number of recipes added via scraping")
+                .register(meterRegistry);
+        listRecipesTimer = Timer.builder("recipes.list.duration")
+                .description("Time taken to list recipes for a user")
+                .register(meterRegistry);
+    }
 
     public List<Recipe> getAllRecipes() {
         return recipeRepository.listAll();
@@ -26,10 +43,11 @@ public class RecipeService {
         recipe.createdAt = new Date();
         recipe.scrapedAt = new Date();
         recipeRepository.persist(recipe);
+        recipesAddedCounter.increment();
     }
 
     public List<Recipe> getRecipesForUser(UUID userId) {
-        return recipeRepository.findByUserId(userId);
+        return listRecipesTimer.record(() -> recipeRepository.findByUserId(userId));
     }
 
     public List<Recipe> getRecommendations(int numRecipes, String mealPlanId, UUID userId) {
