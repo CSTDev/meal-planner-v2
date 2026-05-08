@@ -17,9 +17,9 @@ public class User extends PanacheEntityBase {
     @Id
     public UUID id;
 
-    String email;
+    public String email;
 
-    String name;
+    public String name;
 
     @Column(name = "created_at")
     Date createdAt;
