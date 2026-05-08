@@ -1,0 +1,2 @@
+# Normalize all text files to LF (primary environment: WSL/Linux)
+* text=auto eol=lf

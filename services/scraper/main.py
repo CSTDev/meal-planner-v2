@@ -5,18 +5,21 @@ Consumes RecipeScrapeRequested events and publishes RecipeScrapeCompleted events
 
 import json
 import logging
+import os
 import re
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
+from urllib.parse import urlparse
 from uuid import uuid4
+
 from recipe_scrapers import scrape_me
-import os
 
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import KafkaError
+from prometheus_client import Counter, Histogram, start_http_server
 
 class RateLimiter:
     """
@@ -193,6 +196,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Prometheus metrics
+SCRAPE_REQUESTS_TOTAL = Counter(
+    'scraper_requests_total',
+    'Total number of scrape requests received',
+    ['status']  # labels: success, failure
+)
+SCRAPE_DURATION_SECONDS = Histogram(
+    'scraper_duration_seconds',
+    'Time spent scraping a recipe URL',
+    buckets=[0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0]
+)
+EVENTS_PUBLISHED_TOTAL = Counter(
+    'scraper_events_published_total',
+    'Total Kafka events published by the scraper',
+    ['event_type']  # labels: scrape-completed, scrape-failed
+)
+
 
 # Data classes matching Java Records
 @dataclass
@@ -346,13 +366,13 @@ class RecipeScraperService:
         Returns:
             Dictionary containing scraped recipe data
         """
-        from urllib.parse import urlparse
         host = urlparse(url).netloc or url
         self.rate_limiter.wait(host)
 
         logger.info(f"Scraping recipe from: {url}")
-        scraper = scrape_me(url)
-        return scraper.to_json()
+        with SCRAPE_DURATION_SECONDS.time():
+            scraper = scrape_me(url)
+            return scraper.to_json()
 
     def process_scrape_request(self, event: Dict) -> None:
         """
@@ -418,6 +438,8 @@ class RecipeScraperService:
 
                 # Publish to Kafka
                 self.publish_event(completed_event.to_dict())
+                SCRAPE_REQUESTS_TOTAL.labels(status='success').inc()
+                EVENTS_PUBLISHED_TOTAL.labels(event_type='scrape-completed').inc()
                 logger.info(
                     f"Successfully published scrape completed event for: {url}")
 
@@ -440,6 +462,8 @@ class RecipeScraperService:
 
                 # Publish failure to Kafka
                 self.publish_event(failed_event.to_dict())
+                SCRAPE_REQUESTS_TOTAL.labels(status='failure').inc()
+                EVENTS_PUBLISHED_TOTAL.labels(event_type='scrape-failed').inc()
                 logger.info(f"Published scrape failed event for: {url}")
 
         except Exception as e:
@@ -503,6 +527,11 @@ def main():
     RETURN_TOPIC = 'scraped-recipes'
     CONSUMER_GROUP = 'scraper-service'
     RATE_LIMIT_DELAY = float(os.getenv('SCRAPER_RATE_LIMIT_SECONDS', '2.0'))
+    METRICS_PORT = int(os.getenv('SCRAPER_METRICS_PORT', '8000'))
+
+    # Start Prometheus metrics HTTP server on a background thread
+    start_http_server(METRICS_PORT)
+    logger.info(f"Prometheus metrics available at http://0.0.0.0:{METRICS_PORT}/metrics")
 
     # Create and start the service
     service = RecipeScraperService(
