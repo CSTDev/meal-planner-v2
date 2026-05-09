@@ -11,7 +11,7 @@ import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -151,7 +151,7 @@ def parse_ingredient(ingredient_str: str) -> dict:
                 pass
             text = glued_match.group(3).strip()
             # Return with this as the unit
-            name = text.lstrip('of').strip() if text.lower().startswith('of ') else text
+            name = text[3:].strip() if text.lower().startswith('of ') else text
             return {'quantity': quantity, 'unit': glued_match.group(2), 'name': name or ingredient_str}
 
     # Skip optional adjective before unit (e.g. "level", "heaped")
