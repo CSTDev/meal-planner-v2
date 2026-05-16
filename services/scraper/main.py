@@ -5,16 +5,43 @@ Consumes RecipeScrapeRequested events and publishes RecipeScrapeCompleted events
 
 import json
 import logging
+import os
 import re
+import time
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
+from urllib.parse import urlparse
 from uuid import uuid4
+
 from recipe_scrapers import scrape_me
-import os
 
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import KafkaError
+from prometheus_client import Counter, Histogram, start_http_server
+
+class RateLimiter:
+    """
+    Per-host rate limiter that enforces a minimum delay between requests
+    to the same host.
+    """
+
+    def __init__(self, min_delay_seconds: float = 2.0):
+        self.min_delay_seconds = min_delay_seconds
+        self._last_request_time: Dict[str, float] = defaultdict(float)
+
+    def wait(self, host: str) -> None:
+        """Block until it is safe to make the next request to host."""
+        now = time.monotonic()
+        elapsed = now - self._last_request_time[host]
+        remaining = self.min_delay_seconds - elapsed
+        if remaining > 0:
+            logger_rl = logging.getLogger(__name__)
+            logger_rl.debug(f"Rate limiting: waiting {remaining:.2f}s before next request to {host}")
+            time.sleep(remaining)
+        self._last_request_time[host] = time.monotonic()
+
 
 _UNITS = {
     'cups', 'cup', 'c',
@@ -71,11 +98,28 @@ def _parse_quantity(s: str) -> float:
     return float(s)
 
 
+# Words that can appear between the quantity and the unit and should be skipped
+# e.g. "1 level tbsp" or "1 heaped tsp"
+_UNIT_ADJECTIVES = {'level', 'heaped', 'heaping', 'flat', 'rounded', 'scant'}
+
+
 def parse_ingredient(ingredient_str: str) -> dict:
-    """Parse an ingredient string into quantity, unit, and name."""
+    """Parse an ingredient string into quantity, unit, and name.
+
+    Handles common edge cases including:
+    - Unicode fractions (½, ¼ …)
+    - Mixed numbers (1 1/2)
+    - Units attached directly to numbers with no space (e.g. 250g, 30ml)
+    - Adjectives before units (e.g. "1 level tbsp")
+    - Multiplier notation (e.g. "2 x 120g")
+    - Leading "of" after a unit word (e.g. "handful of basil")
+    """
     text = _replace_unicode_fractions(ingredient_str.strip())
 
     quantity = 0.0
+
+    # Match quantity: integer, decimal, fraction, or mixed number (e.g. "1 1/2")
+    # Also handles number+unit-attached directly (e.g. "250g") — captured as number only
     qty_match = re.match(r'^(\d+(?:\s+\d+/\d+|\.\d+|/\d+)?)', text)
     if qty_match:
         try:
@@ -84,17 +128,61 @@ def parse_ingredient(ingredient_str: str) -> dict:
             quantity = 0.0
         text = text[qty_match.end():].strip()
 
+        # Handle "2 x 120g" multiplier notation: skip "x <number><unit>" and treat
+        # the first number as the count, keeping the rest for further parsing.
+        x_match = re.match(r'^x\s+(\d+(?:\.\d+)?)\s*', text, re.IGNORECASE)
+        if x_match:
+            text = text[x_match.end():].strip()
+
+    # Handle number glued to unit (e.g. "250g", "30ml") — no space between them.
+    # Only relevant when text still starts with digits after stripping the main number.
+    # This case is already handled because qty_match only consumes digits/fraction chars;
+    # if there was no space before the unit it would have been left in text.
+    glued_match = re.match(r'^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)(.*)', text)
+    if glued_match:
+        potential_unit = glued_match.group(2).lower()
+        if potential_unit in _UNITS:
+            try:
+                extra_qty = float(glued_match.group(1))
+                # Use this quantity only if we have no quantity yet (handles "250g" alone)
+                if quantity == 0.0:
+                    quantity = extra_qty
+            except ValueError:
+                pass
+            text = glued_match.group(3).strip()
+            # Return with this as the unit
+            name = text[3:].strip() if text.lower().startswith('of ') else text
+            return {'quantity': quantity, 'unit': glued_match.group(2), 'name': name or ingredient_str}
+
+    # Skip optional adjective before unit (e.g. "level", "heaped")
+    words = text.split()
+    if words and words[0].lower() in _UNIT_ADJECTIVES:
+        words = words[1:]
+        text = ' '.join(words)
+
     unit = ''
     words = text.split()
     if words and words[0].lower().rstrip('.') in _UNITS:
         unit = words[0]
         text = ' '.join(words[1:]).strip()
 
+    # Strip a leading "of" that sometimes follows unit words (e.g. "handful of basil")
+    if text.lower().startswith('of '):
+        text = text[3:].strip()
+
     return {'quantity': quantity, 'unit': unit, 'name': text or ingredient_str}
 
 
 def parse_servings(yields_str) -> int:
-    """Extract the first number from a yields string like '4 servings' or 'Serves 4'."""
+    """Extract the serving count from a yields string.
+
+    Handles formats like:
+    - '4 servings'
+    - 'Serves 4'
+    - 'Makes 4 portions'
+    - '4'
+    - '2-3' (returns the first number)
+    """
     if not yields_str:
         return 0
     match = re.search(r'\d+', str(yields_str))
@@ -107,6 +195,23 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Prometheus metrics
+SCRAPE_REQUESTS_TOTAL = Counter(
+    'scraper_requests_total',
+    'Total number of scrape requests received',
+    ['status']  # labels: success, failure
+)
+SCRAPE_DURATION_SECONDS = Histogram(
+    'scraper_duration_seconds',
+    'Time spent scraping a recipe URL',
+    buckets=[0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0]
+)
+EVENTS_PUBLISHED_TOTAL = Counter(
+    'scraper_events_published_total',
+    'Total Kafka events published by the scraper',
+    ['event_type']  # labels: scrape-completed, scrape-failed
+)
 
 
 # Data classes matching Java Records
@@ -220,10 +325,12 @@ class RecipeScraperService:
         bootstrap_servers: str = 'localhost:9092',
         topic_name: str = 'recipe-scraping',
         return_topic_name: str = 'recipes',
-        consumer_group: str = 'scraper-service'
+        consumer_group: str = 'scraper-service',
+        rate_limit_delay: float = 2.0
     ):
         self.topic_name = topic_name
         self.return_topic_name = return_topic_name
+        self.rate_limiter = RateLimiter(min_delay_seconds=rate_limit_delay)
 
         # Initialize Kafka consumer
         self.consumer = KafkaConsumer(
@@ -250,16 +357,22 @@ class RecipeScraperService:
         """
         Method for scraping recipe from URL
 
+        Applies per-host rate limiting so the same site is not hit too
+        quickly in succession.
+
         Args:
             url: The URL of the recipe to scrape
 
         Returns:
             Dictionary containing scraped recipe data
         """
-        logger.info(f"Scraping recipe from: {url}")
+        host = urlparse(url).netloc or url
+        self.rate_limiter.wait(host)
 
-        scraper = scrape_me(url)
-        return scraper.to_json()
+        logger.info(f"Scraping recipe from: {url}")
+        with SCRAPE_DURATION_SECONDS.time():
+            scraper = scrape_me(url)
+            return scraper.to_json()
 
     def process_scrape_request(self, event: Dict) -> None:
         """
@@ -325,6 +438,8 @@ class RecipeScraperService:
 
                 # Publish to Kafka
                 self.publish_event(completed_event.to_dict())
+                SCRAPE_REQUESTS_TOTAL.labels(status='success').inc()
+                EVENTS_PUBLISHED_TOTAL.labels(event_type='scrape-completed').inc()
                 logger.info(
                     f"Successfully published scrape completed event for: {url}")
 
@@ -347,6 +462,8 @@ class RecipeScraperService:
 
                 # Publish failure to Kafka
                 self.publish_event(failed_event.to_dict())
+                SCRAPE_REQUESTS_TOTAL.labels(status='failure').inc()
+                EVENTS_PUBLISHED_TOTAL.labels(event_type='scrape-failed').inc()
                 logger.info(f"Published scrape failed event for: {url}")
 
         except Exception as e:
@@ -403,19 +520,26 @@ def main():
     """
     Entry point for the service
     """
-    # Configuration (could be loaded from environment variables)
+    # Configuration (loaded from environment variables)
     KAFKA_BOOTSTRAP_SERVERS = os.getenv(
         'KAFKA_BOOTSTRAP_SERVERS', 'kafka:29092')
     KAFKA_TOPIC = 'scrape-requests'
     RETURN_TOPIC = 'scraped-recipes'
     CONSUMER_GROUP = 'scraper-service'
+    RATE_LIMIT_DELAY = float(os.getenv('SCRAPER_RATE_LIMIT_SECONDS', '2.0'))
+    METRICS_PORT = int(os.getenv('SCRAPER_METRICS_PORT', '8000'))
+
+    # Start Prometheus metrics HTTP server on a background thread
+    start_http_server(METRICS_PORT)
+    logger.info(f"Prometheus metrics available at http://0.0.0.0:{METRICS_PORT}/metrics")
 
     # Create and start the service
     service = RecipeScraperService(
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         topic_name=KAFKA_TOPIC,
         return_topic_name=RETURN_TOPIC,
-        consumer_group=CONSUMER_GROUP
+        consumer_group=CONSUMER_GROUP,
+        rate_limit_delay=RATE_LIMIT_DELAY
     )
 
     service.start()

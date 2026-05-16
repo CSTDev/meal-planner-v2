@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# menu-planner-ui
 
-## Getting Started
+Next.js front-end for the meal planner, providing authentication (via Supabase) and UI for recipes, meal plans, and scraping.
 
-First, run the development server:
+## Environment variables
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Create a `.env.local` file (never committed) with the following:
+
+| Variable | Required | Description |
+|---|---|---|
+| `SUPABASE_URL` | Yes | Supabase project URL used by the **server** (middleware, API routes). When running inside Docker, use the Docker-internal address (e.g. `http://host.docker.internal:54321`). |
+| `SUPABASE_PUBLIC_URL` | No | Supabase URL returned to the **browser** via `/api/config`. Defaults to `SUPABASE_URL` if not set. Set this when the server and browser reach Supabase via different hostnames (e.g. local dev with Docker). |
+| `SUPABASE_ANON_KEY` | Yes | Supabase anonymous (public) key. |
+| `API_GATEWAY_URL` | Yes | Base URL of the backend API gateway (e.g. `http://localhost:8080`). |
+
+### Local dev example
+
+```env
+SUPABASE_URL=http://host.docker.internal:54321
+SUPABASE_PUBLIC_URL=http://localhost:54321
+SUPABASE_ANON_KEY=<your-anon-key>
+API_GATEWAY_URL=http://localhost:8080
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Docker / production
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Pass the vars at runtime — they are **not** baked into the image:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+docker run \
+  -e SUPABASE_URL=https://xxxx.supabase.co \
+  -e SUPABASE_ANON_KEY=<anon-key> \
+  -e API_GATEWAY_URL=https://api.example.com \
+  -p 3000:3000 \
+  ghcr.io/cstdev/meal-planner-ui:latest
+```
 
-## Learn More
+`SUPABASE_PUBLIC_URL` is optional in production when the server and browser use the same Supabase host.
 
-To learn more about Next.js, take a look at the following resources:
+## Development
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+yarn install
+yarn dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open [http://localhost:3000](http://localhost:3000).
 
-## Deploy on Vercel
+## Build
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+yarn build
+yarn start
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The build requires **no** Supabase environment variables — Supabase config is fetched at runtime via `/api/config`.

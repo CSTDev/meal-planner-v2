@@ -13,6 +13,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 @Entity
@@ -40,6 +41,17 @@ public class Recipe extends PanacheEntityBase {
 
     @Column(name = "scraped_by_user_id")
     public UUID scrapedByUserId;
+
+    @PrePersist
+    public void prePersist() {
+        Date now = new Date();
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        if (scrapedAt == null) {
+            scrapedAt = now;
+        }
+    }
 
     // Builder
     public static class Builder {

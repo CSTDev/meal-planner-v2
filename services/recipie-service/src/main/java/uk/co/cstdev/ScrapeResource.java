@@ -4,6 +4,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 import org.eclipse.microprofile.jwt.JsonWebToken;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 
@@ -22,6 +25,7 @@ import uk.co.cstdev.data.messaging.RecipeScrapeRequested;
 @Path("/api/scrape")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@Tag(name = "Scraping", description = "Trigger asynchronous recipe scraping from a URL")
 public class ScrapeResource {
 
     @Channel("scrape-requests")
@@ -32,6 +36,9 @@ public class ScrapeResource {
 
     @POST
     @Authenticated
+    @Operation(summary = "Request recipe scrape", description = "Publishes a scrape-requested event for the given URL. The recipe is stored asynchronously when scraping completes.")
+    @APIResponse(responseCode = "200", description = "Scrape request accepted")
+    @APIResponse(responseCode = "401", description = "Unauthorized")
     public Response ScrapeRecipe(ScrapeRequest url) {
         String userId = jwt.getSubject();
         scrapeRequestEmitter.send(new RecipeScrapeRequested(
