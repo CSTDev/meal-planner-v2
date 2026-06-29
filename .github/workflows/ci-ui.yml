@@ -9,6 +9,7 @@ on:
   pull_request:
     paths:
       - "services/menu-planner-ui/**"
+      - ".github/workflows/ci-ui.yml"
 
 env:
   REGISTRY: ghcr.io

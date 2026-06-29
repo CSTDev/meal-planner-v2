@@ -9,6 +9,7 @@ on:
   pull_request:
     paths:
       - "services/recipie-service/**"
+      - ".github/workflows/ci-recipe-service.yml"
 
 env:
   REGISTRY: ghcr.io

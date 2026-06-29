@@ -9,6 +9,7 @@ on:
   pull_request:
     paths:
       - "services/scraper/**"
+      - ".github/workflows/ci-scraper.yml"
 
 env:
   REGISTRY: ghcr.io
