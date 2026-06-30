@@ -31,7 +31,8 @@ export async function middleware(request: NextRequest) {
     const isPublicRoute =
         pathname === '/' ||
         pathname.startsWith('/login') ||
-        pathname.startsWith('/signup');
+        pathname.startsWith('/signup') ||
+        pathname === '/api/config';
 
     if (isPublicRoute) {
         return supabaseResponse;

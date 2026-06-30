@@ -20,6 +20,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [initError, setInitError] = useState<Error | null>(null);
     const supabaseRef = useRef<SupabaseClient | null>(null);
     const router = useRouter();
 
@@ -27,8 +28,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let unsubscribe: (() => void) | null = null;
 
         fetch('/api/config')
-            .then(r => r.json())
+            .then(r => {
+                if (!r.ok) {
+                    throw new Error(`Failed to load auth config: ${r.status} ${r.statusText}`);
+                }
+                return r.json();
+            })
             .then(({ supabaseUrl, supabaseAnonKey }) => {
+                if (!supabaseUrl || !supabaseAnonKey) {
+                    throw new Error('Auth config is missing supabaseUrl or supabaseAnonKey');
+                }
+
                 const supabase = createClient(supabaseUrl, supabaseAnonKey);
                 supabaseRef.current = supabase;
 
@@ -44,19 +54,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     setIsLoading(false);
                 });
                 unsubscribe = () => subscription.unsubscribe();
+            })
+            .catch((err) => {
+                console.error('Failed to initialize authentication:', err);
+                setInitError(err instanceof Error ? err : new Error(String(err)));
+                setIsLoading(false);
             });
 
         return () => unsubscribe?.();
     }, []);
 
+    const requireClient = () => {
+        if (!supabaseRef.current) {
+            throw initError ?? new Error('Authentication is not ready yet. Please refresh and try again.');
+        }
+        return supabaseRef.current;
+    };
+
     const signIn = async (email: string, password: string) => {
-        const { error } = await supabaseRef.current!.auth.signInWithPassword({ email, password });
+        const { error } = await requireClient().auth.signInWithPassword({ email, password });
         if (error) throw error;
         window.location.href = '/meal-plan';
     };
 
     const signUp = async (email: string, password: string, name: string) => {
-        const { error } = await supabaseRef.current!.auth.signUp({
+        const { error } = await requireClient().auth.signUp({
             email,
             password,
             options: { data: { name } },
@@ -65,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const signOut = async () => {
-        await supabaseRef.current!.auth.signOut();
+        await requireClient().auth.signOut();
         router.push('/login');
         router.refresh();
     };
