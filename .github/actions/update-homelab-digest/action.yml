@@ -1,0 +1,40 @@
+name: Update homelab digest
+description: Updates a meal-planner service's image digest in CSTDev/homelab and pushes to main
+inputs:
+  service-key:
+    description: "Top-level values.yaml key for this service, e.g. recipeService"
+    required: true
+  digest:
+    description: "Image digest, e.g. sha256:..."
+    required: true
+  homelab-pat:
+    description: "PAT with contents:write on CSTDev/homelab"
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        git clone --depth 1 https://x-access-token:${{ inputs.homelab-pat }}@github.com/CSTDev/homelab.git homelab-deploy
+        cd homelab-deploy
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        for attempt in 1 2 3 4 5; do
+          yq -i '.${{ inputs.service-key }}.image.digest = "${{ inputs.digest }}"' services/meal-planner/values.yaml
+          git add services/meal-planner/values.yaml
+          if git diff --cached --quiet; then
+            echo "No digest change"
+            break
+          fi
+          git commit -m "Update meal-planner ${{ inputs.service-key }} image digest
+
+          Source: ${{ github.repository }}@${{ github.sha }}"
+          if git push origin HEAD:main; then
+            break
+          fi
+          echo "Push rejected (attempt $attempt), rebasing and retrying..."
+          git fetch origin main
+          git reset --hard origin/main
+          sleep $((RANDOM % 5 + 1))
+        done

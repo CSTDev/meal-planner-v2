@@ -106,3 +106,8 @@ The app is deployed to Kubernetes via ArgoCD. The Helm chart lives in the
 [homelab repo](https://github.com/CSTDev/homelab) under `services/meal-planner/`.
 ArgoCD picks it up automatically via the `home` ApplicationSet when changes
 are merged to the homelab `main` branch.
+
+Each CI workflow pushes its image digest straight to `services/meal-planner/values.yaml`
+in the homelab repo after a successful build on `main` (see the "Update homelab digest"
+step, using the `HOMELAB_DEPLOY_PAT` secret), so a merge to `main` here results in an
+automatic deploy with no manual digest editing.

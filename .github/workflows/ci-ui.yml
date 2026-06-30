@@ -50,6 +50,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
+        id: push
         uses: docker/build-push-action@v6
         with:
           context: services/menu-planner-ui
@@ -57,3 +58,11 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Update homelab digest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: ./.github/actions/update-homelab-digest
+        with:
+          service-key: ui
+          digest: ${{ steps.push.outputs.digest }}
+          homelab-pat: ${{ secrets.HOMELAB_DEPLOY_PAT }}
