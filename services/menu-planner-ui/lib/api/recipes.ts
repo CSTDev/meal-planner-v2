@@ -1,5 +1,3 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-
 export interface ScrapeRecipeRequest {
     url: string;
 }
@@ -13,7 +11,7 @@ export interface ScrapeRecipeResponse {
  * Submit a recipe URL for scraping
  */
 export async function scrapeRecipe(url: string): Promise<ScrapeRecipeResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/scrape`, {
+    const response = await fetch(`/api/scrape`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -33,7 +31,7 @@ export async function scrapeRecipe(url: string): Promise<ScrapeRecipeResponse> {
 
 export async function searchRecipes(query: string) {
     const response = await fetch(
-        `${API_BASE_URL}/api/recipes/search?q=${encodeURIComponent(query)}`,
+        `/api/recipes/search?q=${encodeURIComponent(query)}`,
         {
             method: 'GET',
             headers: {

@@ -1,5 +1,3 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-
 export interface CreateMealPlanRequest {
     numRecipes: number;
     recipeSource: 'own' | 'all' | 'shared';
@@ -25,7 +23,7 @@ export async function createMealPlan(
     numDays: number,
     recipeSource: 'own' | 'all' | 'shared'
 ): Promise<MealPlanResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/meal-plans`, {
+    const response = await fetch(`/api/meal-plans`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -51,7 +49,7 @@ export async function getMealPlanRecommendations(
     numRecipes: number
 ) {
     const response = await fetch(
-        `${API_BASE_URL}/api/meal-plans/${mealPlanId}/recommendations?num_recipes=${numRecipes}`,
+        `/api/meal-plans/${mealPlanId}/recommendations?num_recipes=${numRecipes}`,
         {
             method: 'GET',
             headers: {
@@ -76,7 +74,7 @@ export async function recordFeedback(
     action: 'accepted' | 'rejected'
 ): Promise<void> {
     const response = await fetch(
-        `${API_BASE_URL}/api/meal-plans/${mealPlanId}/feedback`,
+        `/api/meal-plans/${mealPlanId}/feedback`,
         {
             method: 'POST',
             headers: {
