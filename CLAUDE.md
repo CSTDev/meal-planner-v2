@@ -1,3 +1,7 @@
+## Scope & priorities
+
+The purpose of this app is menu planning and aiding with the shopping list / shopping — **not** to be a UI to cook from and follow recipes. Most recipes are stored elsewhere in hardcopy. Treat recipe-reading/detail features (e.g. the recipe detail page) as low priority relative to planning and shopping-list work.
+
 ## Agent skills
 
 ### Issue tracker
