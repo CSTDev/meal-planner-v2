@@ -30,3 +30,25 @@ export interface Ingredient {
     unit?: string;
     originalText: string;
 }
+
+export interface ShoppingListAmount {
+    quantity: number | null;
+    unit: string | null;
+}
+
+export interface ShoppingListBreakdownEntry {
+    recipeId: string;
+    recipeTitle: string;
+    quantity: number | null;
+    unit: string | null;
+}
+
+export interface ShoppingListIngredient {
+    name: string;
+    amounts: ShoppingListAmount[];
+    breakdown: ShoppingListBreakdownEntry[];
+}
+
+export interface ShoppingListResponse {
+    ingredients: ShoppingListIngredient[];
+}
