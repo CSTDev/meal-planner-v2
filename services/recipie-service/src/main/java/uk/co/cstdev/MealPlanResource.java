@@ -105,9 +105,7 @@ public class MealPlanResource {
 
                 UUID mealPlanUuid = UUID.fromString(mealPlanId);
 
-                // For now, use a default user ID - in production this would come from
-                // authentication
-                UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+                UUID userId = UUID.fromString(jwt.getSubject());
 
                 feedbackService.processFeedback(userId, request.recipe_id(), mealPlanUuid, request.action());
 
