@@ -86,7 +86,7 @@ public class ShoppingListService {
                 amountInBaseUnit = ingredient.quantity * family.ratioToBaseUnit();
             } else {
                 groupKey = "unit:" + normalizedUnit;
-                displayUnit = normalizedUnit;
+                displayUnit = normalizedUnit.isEmpty() ? null : normalizedUnit;
                 amountInBaseUnit = ingredient.quantity;
             }
 

@@ -135,7 +135,7 @@ public class MealPlanResource {
                         return Response.status(Response.Status.NOT_FOUND).build();
                 }
 
-                if (!mealPlan.userId.toString().equals(userId)) {
+                if (mealPlan.userId == null || !mealPlan.userId.toString().equals(userId)) {
                         return Response.status(Response.Status.FORBIDDEN).build();
                 }
 

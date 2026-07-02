@@ -30,7 +30,12 @@ public final class IngredientNameNormalizer {
 
         List<String> tokens = new ArrayList<>(Arrays.asList(cleaned.split(" ")));
         tokens.replaceAll(IngredientNameNormalizer::singularize);
-        Collections.sort(tokens);
+        // Descending alphabetical order, per the spec's worked example:
+        // "breast, chicken" -> "chicken breast". Any input token order for a given
+        // set of words normalises to the same canonical string (that's what makes
+        // token-sort useful for dedup); descending order is the specific rule that
+        // reproduces the spec's example and response-shape sample verbatim.
+        tokens.sort(Collections.reverseOrder());
         return String.join(" ", tokens);
     }
 

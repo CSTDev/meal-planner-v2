@@ -128,8 +128,8 @@ public class ShoppingListResourceTest {
         Map<String, Object> response = getShoppingList(mealPlan.id.toString());
         List<Map<String, Object>> ingredients = ingredientsOf(response);
 
-        Map<String, Object> chicken = findIngredient(ingredients, "breast chicken");
-        assertNotNull(chicken, "Expected a normalised 'breast chicken' ingredient line");
+        Map<String, Object> chicken = findIngredient(ingredients, "chicken breast");
+        assertNotNull(chicken, "Expected a normalised 'chicken breast' ingredient line");
 
         List<Map<String, Object>> amounts = (List<Map<String, Object>>) chicken.get("amounts");
         assertEquals(1, amounts.size());
@@ -228,6 +228,28 @@ public class ShoppingListResourceTest {
             @Claim(key = "sub", value = USER_ID_STRING),
             @Claim(key = "email", value = "shopping-list-test@test.com")
     })
+    public void testQuantityPresentWithBlankUnitUsesNullUnitInAmounts() {
+        Recipe recipeA = persistRecipe("Recipe A", new IngredientSpec("egg", 3f, ""));
+        accept(recipeA);
+
+        Map<String, Object> response = getShoppingList(mealPlan.id.toString());
+        List<Map<String, Object>> ingredients = ingredientsOf(response);
+
+        Map<String, Object> egg = findIngredient(ingredients, "egg");
+        assertNotNull(egg);
+
+        List<Map<String, Object>> amounts = (List<Map<String, Object>>) egg.get("amounts");
+        assertEquals(1, amounts.size());
+        assertEquals(3.0f, ((Number) amounts.get(0).get("quantity")).floatValue());
+        assertNull(amounts.get(0).get("unit"), "Blank unit should be represented as null, not an empty string");
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
     public void testRejectedInteractionsAreExcluded() {
         Recipe recipeA = persistRecipe("Recipe A", new IngredientSpec("chicken breast", 340f, "g"));
         Recipe recipeB = persistRecipe("Recipe B", new IngredientSpec("garlic", 2f, "clove"));
@@ -237,7 +259,7 @@ public class ShoppingListResourceTest {
         Map<String, Object> response = getShoppingList(mealPlan.id.toString());
         List<Map<String, Object>> ingredients = ingredientsOf(response);
 
-        assertNotNull(findIngredient(ingredients, "breast chicken"));
+        assertNotNull(findIngredient(ingredients, "chicken breast"));
         assertEquals(null, findIngredient(ingredients, "garlic"));
         assertEquals(1, ingredients.size());
     }
