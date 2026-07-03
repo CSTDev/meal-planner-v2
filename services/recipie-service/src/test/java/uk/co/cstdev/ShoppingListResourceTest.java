@@ -174,9 +174,17 @@ public class ShoppingListResourceTest {
             @Claim(key = "email", value = "shopping-list-test@test.com")
     })
     public void testDisplayNamePicksMostFrequentWordingAcrossReorderedVariants() {
-        Recipe recipeA = persistRecipe("Recipe A", new IngredientSpec("chicken breast", 200f, "g"));
-        Recipe recipeB = persistRecipe("Recipe B", new IngredientSpec("chicken breast", 200f, "g"));
-        Recipe recipeC = persistRecipe("Recipe C", new IngredientSpec("breast, chicken", 200f, "g"));
+        // "brown rice" and "rice, brown" both normalize (token-sorted, descending)
+        // to the dedup key "rice brown", which differs from either's natural
+        // reading order. This means the assertion below can only pass if the
+        // display name is chosen by majority-frequency counting of the natural
+        // wording, not by falling back to the token-sorted dedup key. The
+        // minority variant is accepted first (and the majority wording added
+        // afterwards) so that a naive "first non-empty candidate wins" stub
+        // (which ignores frequency counting) would also fail this test.
+        Recipe recipeA = persistRecipe("Recipe A", new IngredientSpec("rice, brown", 100f, "g"));
+        Recipe recipeB = persistRecipe("Recipe B", new IngredientSpec("brown rice", 100f, "g"));
+        Recipe recipeC = persistRecipe("Recipe C", new IngredientSpec("brown rice", 100f, "g"));
         accept(recipeA);
         accept(recipeB);
         accept(recipeC);
@@ -184,11 +192,13 @@ public class ShoppingListResourceTest {
         Map<String, Object> response = getShoppingList(mealPlan.id.toString());
         List<Map<String, Object>> ingredients = ingredientsOf(response);
 
-        Map<String, Object> chicken = findIngredient(ingredients, "chicken breast");
-        assertNotNull(chicken, "Expected the majority wording 'chicken breast' to be displayed, not the minority reordered variant");
+        Map<String, Object> rice = findIngredient(ingredients, "brown rice");
+        assertNotNull(rice, "Expected the majority wording 'brown rice' to be displayed, not the minority "
+                + "reordered variant or the token-sorted dedup key 'rice brown'");
+        assertEquals(1, ingredients.size(), "Reordered variant should still merge into the same line");
 
-        List<Map<String, Object>> breakdown = (List<Map<String, Object>>) chicken.get("breakdown");
-        assertEquals(3, breakdown.size(), "Reordered variant should still merge into the same line");
+        List<Map<String, Object>> breakdown = (List<Map<String, Object>>) rice.get("breakdown");
+        assertEquals(3, breakdown.size(), "All three contributing recipes should be present in the breakdown");
     }
 
     @Test
