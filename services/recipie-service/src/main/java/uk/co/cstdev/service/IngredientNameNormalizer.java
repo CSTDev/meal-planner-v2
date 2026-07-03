@@ -39,6 +39,21 @@ public final class IngredientNameNormalizer {
         return String.join(" ", tokens);
     }
 
+    /**
+     * Tidies a raw ingredient name for display purposes only: trims, converts
+     * commas to spaces and collapses whitespace. Unlike {@link #normalize(String)}
+     * this does NOT reorder or singularise the words, and preserves original
+     * casing, so the result reads naturally (e.g. "brown rice" stays
+     * "brown rice", not "rice brown").
+     */
+    public static String cleanForDisplay(String rawName) {
+        if (rawName == null) {
+            return "";
+        }
+
+        return rawName.trim().replaceAll("[,]+", " ").replaceAll("\\s+", " ").trim();
+    }
+
     private static String singularize(String word) {
         if (word.length() < 4) {
             return word;

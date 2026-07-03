@@ -146,6 +146,57 @@ public class ShoppingListResourceTest {
             @Claim(key = "sub", value = USER_ID_STRING),
             @Claim(key = "email", value = "shopping-list-test@test.com")
     })
+    public void testDisplayNameUsesTypedWordOrderNotTokenSortedKey() {
+        Recipe recipeA = persistRecipe("Recipe A", new IngredientSpec("brown rice", 100f, "g"));
+        Recipe recipeB = persistRecipe("Recipe B", new IngredientSpec("brown rice", 100f, "g"));
+        accept(recipeA);
+        accept(recipeB);
+
+        Map<String, Object> response = getShoppingList(mealPlan.id.toString());
+        List<Map<String, Object>> ingredients = ingredientsOf(response);
+
+        Map<String, Object> rice = findIngredient(ingredients, "brown rice");
+        assertNotNull(rice, "Expected the display name to read 'brown rice', not the token-sorted 'rice brown'");
+
+        List<Map<String, Object>> amounts = (List<Map<String, Object>>) rice.get("amounts");
+        assertEquals(1, amounts.size());
+        assertEquals(200.0f, ((Number) amounts.get(0).get("quantity")).floatValue());
+        assertEquals("g", amounts.get(0).get("unit"));
+
+        List<Map<String, Object>> breakdown = (List<Map<String, Object>>) rice.get("breakdown");
+        assertEquals(2, breakdown.size());
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
+    public void testDisplayNamePicksMostFrequentWordingAcrossReorderedVariants() {
+        Recipe recipeA = persistRecipe("Recipe A", new IngredientSpec("chicken breast", 200f, "g"));
+        Recipe recipeB = persistRecipe("Recipe B", new IngredientSpec("chicken breast", 200f, "g"));
+        Recipe recipeC = persistRecipe("Recipe C", new IngredientSpec("breast, chicken", 200f, "g"));
+        accept(recipeA);
+        accept(recipeB);
+        accept(recipeC);
+
+        Map<String, Object> response = getShoppingList(mealPlan.id.toString());
+        List<Map<String, Object>> ingredients = ingredientsOf(response);
+
+        Map<String, Object> chicken = findIngredient(ingredients, "chicken breast");
+        assertNotNull(chicken, "Expected the majority wording 'chicken breast' to be displayed, not the minority reordered variant");
+
+        List<Map<String, Object>> breakdown = (List<Map<String, Object>>) chicken.get("breakdown");
+        assertEquals(3, breakdown.size(), "Reordered variant should still merge into the same line");
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
     public void testConvertibleUnitsAreSummedAndConverted() {
         Recipe recipeA = persistRecipe("Recipe A", new IngredientSpec("flour", 500f, "g"));
         Recipe recipeB = persistRecipe("Recipe B", new IngredientSpec("flour", 1f, "kg"));

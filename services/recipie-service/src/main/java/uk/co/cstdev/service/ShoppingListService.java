@@ -100,7 +100,47 @@ public class ShoppingListService {
             amounts.add(new ShoppingListAmount((float) (double) group.getValue(), unit));
         }
 
-        return new ShoppingListIngredient(normalizedName, amounts, breakdown);
+        String displayName = chooseDisplayName(contributions);
+        if (displayName == null) {
+            // Defensive fallback: should only happen if every contribution's raw
+            // ingredient name was blank, which normalize() would already have
+            // filtered out upstream.
+            displayName = normalizedName;
+        }
+        return new ShoppingListIngredient(displayName, amounts, breakdown);
+    }
+
+    /**
+     * Picks the most natural-reading name to display for a merged ingredient
+     * line: the most frequent original wording (cleaned, but not reordered or
+     * singularised) among the contributing recipes, tie-broken by whichever
+     * variant was first encountered. Returns null if no display candidate
+     * could be derived from any contribution.
+     */
+    private String chooseDisplayName(List<IngredientContribution> contributions) {
+        Map<String, Integer> countsByLowerCase = new LinkedHashMap<>();
+        Map<String, String> representativeByLowerCase = new LinkedHashMap<>();
+
+        for (IngredientContribution contribution : contributions) {
+            String cleaned = IngredientNameNormalizer.cleanForDisplay(contribution.ingredient().name);
+            if (cleaned.isEmpty()) {
+                continue;
+            }
+            String key = cleaned.toLowerCase();
+            representativeByLowerCase.putIfAbsent(key, cleaned);
+            countsByLowerCase.merge(key, 1, Integer::sum);
+        }
+
+        String bestKey = null;
+        int bestCount = -1;
+        for (Map.Entry<String, Integer> entry : countsByLowerCase.entrySet()) {
+            if (entry.getValue() > bestCount) {
+                bestCount = entry.getValue();
+                bestKey = entry.getKey();
+            }
+        }
+
+        return bestKey == null ? null : representativeByLowerCase.get(bestKey);
     }
 
     private record IngredientContribution(Recipe recipe, Ingredient ingredient) {
