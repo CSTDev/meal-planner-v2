@@ -30,6 +30,7 @@ export default function MealPlanView({
     const totalCount = mealPlan.recipes.length;
 
     const handleReject = async (recipe: Recipe, index: number) => {
+        setAcceptError(null);
         try {
             // Record rejection
             await recordFeedback(mealPlan.id, recipe.id, 'rejected');
@@ -96,6 +97,7 @@ export default function MealPlanView({
     };
 
     const handleReplaceWithSpecific = async (recipe: Recipe, index: number) => {
+        setAcceptError(null);
         try {
             const oldRecipe = mealPlan.recipes[index];
 

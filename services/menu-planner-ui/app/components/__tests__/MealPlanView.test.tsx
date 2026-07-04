@@ -312,6 +312,35 @@ describe('MealPlanView acceptance state', () => {
         expect(screen.getByRole('alert').textContent).toMatch(/failed to replace/i);
     });
 
+    it('error message is dismissed when the user rejects a recipe after a failed accept', async () => {
+        const user = userEvent.setup();
+        (mealPlansApi.recordFeedback as jest.Mock)
+            .mockRejectedValueOnce(new Error('network error'))  // first call: accept fails
+            .mockResolvedValue(undefined);                      // subsequent calls: succeed
+
+        render(
+            <MealPlanView
+                mealPlan={mockMealPlan}
+                onMealPlanUpdated={jest.fn()}
+                onReset={jest.fn()}
+            />
+        );
+
+        // Fail the accept on recipe 1
+        await user.click(screen.getAllByRole('button', { name: /✓ accept/i })[0]);
+        await waitFor(() => {
+            expect(screen.getByRole('alert')).toBeInTheDocument();
+        });
+
+        // Reject recipe 2 — the error should clear
+        (mealPlansApi.getMealPlanRecommendations as jest.Mock).mockResolvedValue([recipe3]);
+        await user.click(screen.getAllByRole('button', { name: /✗ replace/i })[1]);
+
+        await waitFor(() => {
+            expect(screen.queryByRole('alert')).toBeNull();
+        });
+    });
+
     it('client dedup guard: Choose Different re-landing an already-accepted recipe fires ACCEPTED only once', async () => {
         const user = userEvent.setup();
         // Search returns recipe-1 (which will already be accepted)
