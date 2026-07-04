@@ -9,6 +9,7 @@ import java.util.UUID;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
+import uk.co.cstdev.data.FeedbackAction;
 import uk.co.cstdev.data.Ingredient;
 import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.UserRecipeInteraction;
@@ -30,15 +31,17 @@ public class ShoppingListService {
         @SuppressWarnings("unchecked")
         List<UserRecipeInteraction> acceptedInteractions = em.createQuery(
                 "SELECT i FROM UserRecipeInteraction i " +
-                "WHERE i.mealPlanId = :mealPlanId AND i.userId = :userId AND i.interactionType = 'ACCEPTED' " +
+                "WHERE i.mealPlanId = :mealPlanId AND i.userId = :userId AND i.interactionType = :acceptedType " +
                 "AND NOT EXISTS (" +
                 "  SELECT r FROM UserRecipeInteraction r " +
                 "  WHERE r.mealPlanId = :mealPlanId AND r.userId = :userId AND r.recipeId = i.recipeId " +
-                "  AND r.interactionType = 'REJECTED' AND r.interactionAt > i.interactionAt" +
+                "  AND r.interactionType = :rejectedType AND r.interactionAt > i.interactionAt" +
                 ")",
                 UserRecipeInteraction.class)
                 .setParameter("mealPlanId", mealPlanId)
                 .setParameter("userId", userId)
+                .setParameter("acceptedType", FeedbackAction.ACCEPTED.name())
+                .setParameter("rejectedType", FeedbackAction.REJECTED.name())
                 .getResultList();
 
         // Preserve first-seen order of normalised ingredient names.
