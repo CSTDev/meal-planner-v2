@@ -21,7 +21,7 @@ CREATE TABLE user_recipe_interactions (
     user_id UUID REFERENCES users(id),
     recipe_id UUID REFERENCES recipes(id),
     meal_plan_id UUID REFERENCES meal_plans(id),
-    interaction_type VARCHAR(20) NOT NULL, -- 'accepted', 'rejected', 'viewed'
+    interaction_type VARCHAR(20) NOT NULL, -- 'ACCEPTED', 'REJECTED', 'VIEWED'
     interaction_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, recipe_id, meal_plan_id, interaction_type)
 );

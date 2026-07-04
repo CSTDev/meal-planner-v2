@@ -19,44 +19,6 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
     }
 
     public List<Recipe> findRecommendations(int numRecipes, UUID mealPlanId, UUID userId) {
-        /*
-         * String hql = """
-         * SELECT r.*
-         * FROM recipes r
-         * WHERE
-         * -- Filter by recipe ownership based on meal plan preference
-         * (
-         * ($recipe_source = 'own' AND r.scraped_by_user_id = $user_id)
-         * OR ($recipe_source = 'all')
-         * OR ($recipe_source = 'shared' AND r.scraped_by_user_id != $user_id)
-         * )
-         * AND r.id NOT IN (
-         * -- Exclude recipes already accepted in this meal plan
-         * SELECT recipe_id FROM user_recipe_interactions
-         * WHERE user_id = $user_id
-         * AND meal_plan_id = $meal_plan_id
-         * AND interaction_type = 'accepted'
-         * )
-         * AND r.id NOT IN (
-         * -- Exclude recipes rejected in this meal plan
-         * SELECT recipe_id FROM user_recipe_interactions
-         * WHERE user_id = $user_id
-         * AND meal_plan_id = $meal_plan_id
-         * AND interaction_type = 'rejected'
-         * )
-         * AND r.id NOT IN (
-         * -- Exclude recently shown recipes (last 30 days)
-         * SELECT recipe_id FROM user_recipe_interactions
-         * WHERE user_id = $user_id
-         * AND interaction_type IN ('accepted', 'rejected')
-         * AND interaction_at > NOW() - INTERVAL '30 days'
-         * )
-         * ORDER BY RANDOM()
-         * LIMIT $num_recipes;
-         * """;
-         * 
-         */
-
         String hql = """
                 SELECT r.*
                 FROM recipes r

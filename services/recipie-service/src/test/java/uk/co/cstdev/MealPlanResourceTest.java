@@ -353,12 +353,13 @@ public class MealPlanResourceTest {
                                         .createNativeQuery(
                                                         """
                                                                         INSERT INTO user_recipe_interactions (user_id, recipe_id, meal_plan_id, interaction_type, interaction_at)
-                                                                        VALUES (?, ?, ?, 'ACCEPTED', ?)
+                                                                        VALUES (?, ?, ?, ?, ?)
                                                                         """)
                                         .setParameter(1, user.id)
                                         .setParameter(2, recipes.getFirst().id)
                                         .setParameter(3, oldMealPlan.id)
-                                        .setParameter(4, interactionDate)
+                                        .setParameter(4, FeedbackAction.ACCEPTED.name())
+                                        .setParameter(5, interactionDate)
                                         .executeUpdate();
                         entityManager.flush();
                 });
@@ -412,12 +413,13 @@ public class MealPlanResourceTest {
                                         .createNativeQuery(
                                                         """
                                                                         INSERT INTO user_recipe_interactions (user_id, recipe_id, meal_plan_id, interaction_type, interaction_at)
-                                                                        VALUES (?, ?, ?, 'ACCEPTED', ?)
+                                                                        VALUES (?, ?, ?, ?, ?)
                                                                         """)
                                         .setParameter(1, secondUser.id)
                                         .setParameter(2, recipes.getFirst().id)
                                         .setParameter(3, oldMealPlan.id)
-                                        .setParameter(4, interactionDate)
+                                        .setParameter(4, FeedbackAction.ACCEPTED.name())
+                                        .setParameter(5, interactionDate)
                                         .executeUpdate();
                         entityManager.flush();
                 });
