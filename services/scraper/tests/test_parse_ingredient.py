@@ -96,8 +96,8 @@ class TestTrailingMultiplierNoSpace:
     """Trailing xN without a preceding space is handled correctly."""
 
     def test_no_space_before_multiplier_applies(self):
-        """'(250g)x2' — no space before x — multiplier must still be applied."""
-        result = parse_ingredient('Ingredient (250g)x2')
+        """'Ingredient(250g)x2' — no space before x — multiplier must still be applied."""
+        result = parse_ingredient('Ingredient(250g)x2')
         assert result is not None
         assert result['quantity'] == pytest.approx(500.0)
         assert result['unit'] == 'g'
@@ -107,6 +107,18 @@ class TestTrailingMultiplierNoSpace:
         """'(250g)x0' — no space before x — line must still be dropped."""
         result = parse_ingredient('Ingredient (250g)x0')
         assert result is None
+
+    def test_word_embedded_xN_not_treated_as_multiplier(self):
+        """'Chicken mix2' — x followed by digit inside a word must NOT be a multiplier.
+
+        With the word-boundary guard ((?<!\\w)), the x in 'mix2' is preceded by
+        a word character ('i'), so the trailing-multiplier regex must not match.
+        The name should be returned unchanged.
+        """
+        result = parse_ingredient('Chicken mix2')
+        assert result is not None
+        assert result['name'] == 'Chicken mix2'
+        assert result['quantity'] == pytest.approx(0.0)
 
 
 class TestParenthesisUnitLowercased:
