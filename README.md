@@ -68,7 +68,7 @@ Setup the `.env.local` to point at the right addresses for the other services. I
 SUPABASE_URL=http://host.docker.internal:54321
 # Browser-accessible URL returned by /api/config — use localhost for local dev
 SUPABASE_PUBLIC_URL=http://localhost:54321
-SUPABASE_ANON_KEY=sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
+SUPABASE_ANON_KEY=<your-anon-key>
 
 # Backend services
 API_GATEWAY_URL=http://java:8080
@@ -80,7 +80,7 @@ When the UI is running on the host and the others in containers:
 SUPABASE_URL=http://localhost:54321
 # Browser-accessible URL returned by /api/config — use localhost for local dev
 SUPABASE_PUBLIC_URL=http://localhost:54321
-SUPABASE_ANON_KEY=sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
+SUPABASE_ANON_KEY=<your-anon-key>
 
 # Backend services
 API_GATEWAY_URL=http://localhost:8080

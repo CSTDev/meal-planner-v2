@@ -67,7 +67,7 @@ public final class IngredientNameNormalizer {
         if (word.endsWith("ses") || word.endsWith("xes") || word.endsWith("ches") || word.endsWith("shes")) {
             return word.substring(0, word.length() - 2);
         }
-        if (word.endsWith("s") && !word.endsWith("ss")) {
+        if (word.endsWith("s") && !word.endsWith("ss") && !word.endsWith("us")) {
             return word.substring(0, word.length() - 1);
         }
         return word;
