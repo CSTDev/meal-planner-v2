@@ -14,6 +14,13 @@ Dependencies: PostgreSQL (via Supabase), Kafka.
 
 ## Building locally
 
+The easiest way to run it all together locally is to use devcontainers for the java and pythong services and then run the UI on the host PC.
+
+Run the top level `.devcontainer/docker-compose.yml` this will start all the required containers. 
+Connect VSCode to the ones that you want to run inside.
+
+Start supabase on the host PC (presuming it's installed): `supabase start`
+
 ### recipe-service
 
 Requires Java 21 and Maven (or use the wrapper).
@@ -52,6 +59,32 @@ yarn install
 yarn dev        # development server on :3000
 yarn build      # production build (standalone output)
 yarn start      # serve the production build
+```
+
+Setup the `.env.local` to point at the right addresses for the other services. If running everything in a container then use `host.docker.internal` as the hostname of the supabase services, and the service name in the docker-compose for the backend.
+
+```
+# Server-side URL used by Next.js server and middleware (Docker internal address when running in a container)
+SUPABASE_URL=http://host.docker.internal:54321
+# Browser-accessible URL returned by /api/config — use localhost for local dev
+SUPABASE_PUBLIC_URL=http://localhost:54321
+SUPABASE_ANON_KEY=<your-anon-key>
+
+# Backend services
+API_GATEWAY_URL=http://java:8080
+```
+
+When the UI is running on the host and the others in containers:
+```
+# Server-side URL used by Next.js server and middleware (Docker internal address when running in a container)
+SUPABASE_URL=http://localhost:54321
+# Browser-accessible URL returned by /api/config — use localhost for local dev
+SUPABASE_PUBLIC_URL=http://localhost:54321
+SUPABASE_ANON_KEY=<your-anon-key>
+
+# Backend services
+API_GATEWAY_URL=http://localhost:8080
+
 ```
 
 ## Docker images

@@ -27,9 +27,11 @@ import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.RecipeFeedback;
 import uk.co.cstdev.data.mealplan.MealPlanRequest;
 import uk.co.cstdev.data.mealplan.MealPlanResponse;
+import uk.co.cstdev.data.mealplan.ShoppingListResponse;
 import uk.co.cstdev.service.FeedbackService;
 import uk.co.cstdev.service.MealPlanService;
 import uk.co.cstdev.service.RecipeService;
+import uk.co.cstdev.service.ShoppingListService;
 
 @Path("/api/meal-plans")
 @Consumes(MediaType.APPLICATION_JSON)
@@ -48,6 +50,9 @@ public class MealPlanResource {
 
         @Inject
         MealPlanService mealPlanService;
+
+        @Inject
+        ShoppingListService shoppingListService;
 
         @Inject
         JsonWebToken jwt;
@@ -100,13 +105,41 @@ public class MealPlanResource {
 
                 UUID mealPlanUuid = UUID.fromString(mealPlanId);
 
-                // For now, use a default user ID - in production this would come from
-                // authentication
-                UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+                UUID userId = UUID.fromString(jwt.getSubject());
 
                 feedbackService.processFeedback(userId, request.recipe_id(), mealPlanUuid, request.action());
 
                 return Response.ok().build();
+        }
+
+        @GET
+        @Path("/{id}/shopping-list")
+        @Operation(summary = "Get shopping list for a meal plan", description = "Aggregates ingredients across all accepted recipes in the meal plan")
+        @APIResponse(responseCode = "200", description = "Aggregated shopping list")
+        @APIResponse(responseCode = "401", description = "Unauthorized")
+        @APIResponse(responseCode = "403", description = "Meal plan does not belong to the authenticated user")
+        @APIResponse(responseCode = "404", description = "Meal plan not found")
+        public Response getShoppingList(@PathParam("id") String id) {
+                String userId = jwt.getSubject();
+
+                MealPlan mealPlan;
+                try {
+                        mealPlan = MealPlan.findById(UUID.fromString(id));
+                } catch (IllegalArgumentException e) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan == null) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan.userId == null || !mealPlan.userId.toString().equals(userId)) {
+                        return Response.status(Response.Status.FORBIDDEN).build();
+                }
+
+                ShoppingListResponse response = shoppingListService.buildShoppingList(mealPlan.id,
+                                UUID.fromString(userId));
+                return Response.ok(response).build();
         }
 
 }

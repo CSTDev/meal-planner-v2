@@ -1,3 +1,5 @@
+import { ShoppingListResponse } from '@/types/recipe';
+
 export interface CreateMealPlanRequest {
     numRecipes: number;
     recipeSource: 'own' | 'all' | 'shared';
@@ -90,4 +92,27 @@ export async function recordFeedback(
     if (!response.ok) {
         throw new Error('Failed to record feedback');
     }
+}
+
+/**
+ * Get the aggregated shopping list for a meal plan
+ */
+export async function getShoppingList(
+    mealPlanId: string
+): Promise<ShoppingListResponse> {
+    const response = await fetch(
+        `/api/meal-plans/${mealPlanId}/shopping-list`,
+        {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error('Failed to get shopping list');
+    }
+
+    return response.json();
 }
