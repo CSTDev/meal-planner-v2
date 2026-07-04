@@ -2,4 +2,3 @@
 recipe_scrapers == 14.61.0
 kafka-python==2.3.0
 prometheus-client==0.25.0
-pytest==8.4.1

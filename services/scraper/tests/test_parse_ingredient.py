@@ -92,6 +92,37 @@ class TestNonzeroTrailingMultiplier:
         assert result['name'] == 'Olive oil'
 
 
+class TestTrailingMultiplierNoSpace:
+    """Trailing xN without a preceding space is handled correctly."""
+
+    def test_no_space_before_multiplier_applies(self):
+        """'(250g)x2' — no space before x — multiplier must still be applied."""
+        result = parse_ingredient('Ingredient (250g)x2')
+        assert result is not None
+        assert result['quantity'] == pytest.approx(500.0)
+        assert result['unit'] == 'g'
+        assert 'x2' not in result['name']
+
+    def test_no_space_zero_multiplier_drops_line(self):
+        """'(250g)x0' — no space before x — line must still be dropped."""
+        result = parse_ingredient('Ingredient (250g)x0')
+        assert result is None
+
+
+class TestParenthesisUnitLowercased:
+    """Parenthetical unit is returned lowercase regardless of input case."""
+
+    def test_uppercase_unit_returned_lowercase(self):
+        result = parse_ingredient('Chicken (300G)')
+        assert result is not None
+        assert result['unit'] == 'g'
+
+    def test_mixed_case_unit_returned_lowercase(self):
+        result = parse_ingredient('Broth (500Ml)')
+        assert result is not None
+        assert result['unit'] == 'ml'
+
+
 class TestExistingPrefixMultiplierUnchanged:
     """The existing '2 x 120g' prefix-multiplier behaviour must not regress."""
 

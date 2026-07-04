@@ -26,10 +26,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install -r services/scraper/requirements.txt
+        run: |
+          pip install -r services/scraper/requirements.txt
+          pip install -r services/scraper/requirements-dev.txt
 
       - name: Run pytest
         run: python -m pytest services/scraper/tests/ -v

@@ -126,7 +126,7 @@ def parse_ingredient(ingredient_str: str) -> Optional[dict]:
     # tagged with a trailing "xN" token.  x0 = unselected variant → drop.
     # xN (N > 0) = selected variant with a quantity multiplier.
     trailing_multiplier = 1
-    trailing_x = re.search(r'\s+x(\d+)\s*$', text, re.IGNORECASE)
+    trailing_x = re.search(r'\s*x(\d+)\s*$', text, re.IGNORECASE)
     if trailing_x:
         n = int(trailing_x.group(1))
         if n == 0:
@@ -147,7 +147,7 @@ def parse_ingredient(ingredient_str: str) -> Optional[dict]:
                 paren_qty = float(paren_match.group(1)) * trailing_multiplier
             except ValueError:
                 paren_qty = 0.0
-            return {'quantity': paren_qty, 'unit': paren_unit, 'name': name or ingredient_str}
+            return {'quantity': paren_qty, 'unit': paren_unit.lower(), 'name': name or ingredient_str}
 
     quantity = 0.0
 
