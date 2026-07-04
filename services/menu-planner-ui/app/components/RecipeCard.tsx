@@ -8,16 +8,18 @@ interface RecipeCardProps {
     onAccept?: () => void;
     onReject?: () => void;
     showActions?: boolean;
+    isAccepted?: boolean;
 }
 
 export default function RecipeCard({
     recipe,
     onAccept,
     onReject,
-    showActions = true
+    showActions = true,
+    isAccepted = false,
 }: RecipeCardProps) {
     return (
-        <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+        <div className={`bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow${isAccepted ? ' ring-2 ring-green-500' : ''}`}>
             {/* Recipe Image */}
             <div className="relative h-48 bg-gray-200">
                 {recipe.imageUrl ? (
@@ -84,14 +86,23 @@ export default function RecipeCard({
 
                 {showActions && (onAccept || onReject) && (
                     <div className="flex gap-2">
-                        {onAccept && (
-                            <button
-                                onClick={onAccept}
-                                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md transition font-medium"
-                                title="Accept this recipe"
+                        {isAccepted ? (
+                            <div
+                                className="flex-1 bg-green-700 text-white py-2 px-4 rounded-md font-medium text-center"
+                                aria-label="Accepted ✓"
                             >
-                                ✓ Accept
-                            </button>
+                                Accepted ✓
+                            </div>
+                        ) : (
+                            onAccept && (
+                                <button
+                                    onClick={onAccept}
+                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md transition font-medium"
+                                    title="Accept this recipe"
+                                >
+                                    ✓ Accept
+                                </button>
+                            )
                         )}
                         {onReject && (
                             <button
