@@ -105,3 +105,53 @@ SUMMARY: Looks good.
   "summary": "Looks good."
 }
 ---
+
+## Review cycle 5 — 2026-07-04
+
+STATUS: NEEDS_CHANGES
+
+CRITICAL:
+- The new test only exercises the `handleReject` path. Removing `setAcceptError(null)` from `handleReplaceWithSpecific` (line 100 of MealPlanView.tsx) would not cause any test to fail — no test exists that: (a) fails an accept to show the alert, (b) successfully executes `handleReplaceWithSpecific` via "Choose Different", and (c) asserts the alert is gone. A second test is required in the acceptance-state describe block following the existing pattern (use `StatefulMealPlanView`, mock `recipesApi.searchRecipes` to return a replacement, mock `recordFeedback` so the first call (accept) rejects and subsequent calls resolve, click accept to show the alert, then go through the "Choose Different" → search → select flow, and assert `screen.queryByRole('alert')` is null).
+
+WARNINGS:
+- none
+
+SUGGESTIONS:
+- none
+
+SUMMARY: Both `setAcceptError(null)` calls are placed correctly as the first statement in their handlers, but the test suite only covers the `handleReject` path — add a parallel test that drives `handleReplaceWithSpecific` after a failed accept and asserts the alert is cleared.
+
+---json
+{
+  "status": "NEEDS_CHANGES",
+  "critical": [
+    "No test covers clearing acceptError via handleReplaceWithSpecific. A test must: fail an accept (show alert), then successfully execute handleReplaceWithSpecific via the 'Choose Different' flow, and assert screen.queryByRole('alert') returns null. Without it, removing setAcceptError(null) from handleReplaceWithSpecific is an undetected regression."
+  ],
+  "warnings": [],
+  "summary": "Both setAcceptError(null) calls are placed correctly, but the test only validates the handleReject path — a parallel test for handleReplaceWithSpecific is required before approval."
+}
+---
+
+## Review cycle 6 — 2026-07-04
+
+STATUS: APPROVED
+
+CRITICAL:
+- none
+
+WARNINGS:
+- none
+
+SUGGESTIONS:
+- none
+
+SUMMARY: Looks good.
+
+---json
+{
+  "status": "APPROVED",
+  "critical": [],
+  "warnings": [],
+  "summary": "Looks good."
+}
+---
