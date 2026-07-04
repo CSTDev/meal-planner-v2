@@ -59,7 +59,7 @@ _UNITS = {
     'bunches', 'bunch',
     'cloves', 'clove',
     'slices', 'slice',
-    'pieces', 'piece',
+    'pieces', 'piece', 'pcs',
     'cans', 'can',
     'packages', 'package', 'pkg',
     'sticks', 'stick',
@@ -103,18 +103,51 @@ def _parse_quantity(s: str) -> float:
 _UNIT_ADJECTIVES = {'level', 'heaped', 'heaping', 'flat', 'rounded', 'scant'}
 
 
-def parse_ingredient(ingredient_str: str) -> dict:
+def parse_ingredient(ingredient_str: str) -> Optional[dict]:
     """Parse an ingredient string into quantity, unit, and name.
+
+    Returns None for zero-multiplier serving-variant lines (trailing ``x0``),
+    which should be filtered out by the caller.
 
     Handles common edge cases including:
     - Unicode fractions (½, ¼ …)
     - Mixed numbers (1 1/2)
     - Units attached directly to numbers with no space (e.g. 250g, 30ml)
     - Adjectives before units (e.g. "1 level tbsp")
-    - Multiplier notation (e.g. "2 x 120g")
+    - Prefix multiplier notation (e.g. "2 x 120g")
+    - Trailing serving-size multiplier (e.g. "Chicken breast (300g) x2")
+    - Embedded parenthetical weight/volume (e.g. "Diced chicken breast (250g)")
     - Leading "of" after a unit word (e.g. "handful of basil")
     """
     text = _replace_unicode_fractions(ingredient_str.strip())
+
+    # --- Trailing xN serving-variant multiplier ---
+    # Gousto (and some other sites) emit one line per serving-size option,
+    # tagged with a trailing "xN" token.  x0 = unselected variant → drop.
+    # xN (N > 0) = selected variant with a quantity multiplier.
+    trailing_multiplier = 1
+    trailing_x = re.search(r'(?<!\w)x(\d+)\s*$', text, re.IGNORECASE)
+    if trailing_x:
+        n = int(trailing_x.group(1))
+        if n == 0:
+            return None  # zero-multiplier line: discard entirely
+        trailing_multiplier = n
+        text = text[:trailing_x.start()].strip()
+
+    # --- Embedded parenthetical weight/volume (e.g. "(250g)", "(2pcs)") ---
+    # If the string carries a "(NUNITstring)" block and the unit is recognised,
+    # extract quantity/unit from it and strip the block from the name.
+    # Apply any trailing multiplier to the extracted quantity.
+    paren_match = re.search(r'\((\d+(?:\.\d+)?)\s*([a-zA-Z]+)\)', text)
+    if paren_match:
+        paren_unit = paren_match.group(2)
+        if paren_unit.lower() in _UNITS:
+            name = (text[:paren_match.start()] + text[paren_match.end():]).strip()
+            try:
+                paren_qty = float(paren_match.group(1)) * trailing_multiplier
+            except ValueError:
+                paren_qty = 0.0
+            return {'quantity': paren_qty, 'unit': paren_unit.lower(), 'name': name or ingredient_str}
 
     quantity = 0.0
 
@@ -128,8 +161,10 @@ def parse_ingredient(ingredient_str: str) -> dict:
             quantity = 0.0
         text = text[qty_match.end():].strip()
 
-        # Handle "2 x 120g" multiplier notation: skip "x <number><unit>" and treat
+        # Handle "2 x 120g" prefix-multiplier notation: skip "x <number>" and treat
         # the first number as the count, keeping the rest for further parsing.
+        # This is the pre-existing path; trailing_multiplier is 1 here because
+        # "2 x 120g" has no trailing xN suffix.
         x_match = re.match(r'^x\s+(\d+(?:\.\d+)?)\s*', text, re.IGNORECASE)
         if x_match:
             text = text[x_match.end():].strip()
@@ -152,7 +187,7 @@ def parse_ingredient(ingredient_str: str) -> dict:
             text = glued_match.group(3).strip()
             # Return with this as the unit
             name = text[3:].strip() if text.lower().startswith('of ') else text
-            return {'quantity': quantity, 'unit': glued_match.group(2), 'name': name or ingredient_str}
+            return {'quantity': quantity * trailing_multiplier, 'unit': glued_match.group(2), 'name': name or ingredient_str}
 
     # Skip optional adjective before unit (e.g. "level", "heaped")
     words = text.split()
@@ -170,7 +205,7 @@ def parse_ingredient(ingredient_str: str) -> dict:
     if text.lower().startswith('of '):
         text = text[3:].strip()
 
-    return {'quantity': quantity, 'unit': unit, 'name': text or ingredient_str}
+    return {'quantity': quantity * trailing_multiplier, 'unit': unit, 'name': text or ingredient_str}
 
 
 def parse_servings(yields_str) -> int:
@@ -409,7 +444,7 @@ class RecipeScraperService:
                 recipe_data = RecipeData(
                     title=scraped_data.get('title', 'Unknown Recipe'),
                     description=scraped_data.get('description'),
-                    ingredients=[parse_ingredient(i) for i in scraped_data.get('ingredients', [])],
+                    ingredients=[p for p in (parse_ingredient(i) for i in scraped_data.get('ingredients', [])) if p is not None],
                     instructions=scraped_data.get('instructions_list', []),
                     prep_time=None,
                     cook_time=None,
