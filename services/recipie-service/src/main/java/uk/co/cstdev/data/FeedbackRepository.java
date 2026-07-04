@@ -11,7 +11,18 @@ public class FeedbackRepository implements PanacheRepository<UserRecipeInteracti
 
     @Transactional
     public void saveFeedback(UUID userId, UUID recipeId, UUID mealPlanId, FeedbackAction interactionType) {
-        UserRecipeInteraction interaction = UserRecipeInteraction.create(userId, recipeId, mealPlanId, interactionType);
-        persist(interaction);
+        getEntityManager().createNativeQuery("""
+                INSERT INTO user_recipe_interactions
+                    (id, user_id, recipe_id, meal_plan_id, interaction_type, interaction_at)
+                VALUES
+                    (gen_random_uuid(), :userId, :recipeId, :mealPlanId, :interactionType, clock_timestamp())
+                ON CONFLICT (user_id, recipe_id, meal_plan_id, interaction_type)
+                DO UPDATE SET interaction_at = clock_timestamp()
+                """)
+                .setParameter("userId", userId)
+                .setParameter("recipeId", recipeId)
+                .setParameter("mealPlanId", mealPlanId)
+                .setParameter("interactionType", interactionType.name())
+                .executeUpdate();
     }
 }

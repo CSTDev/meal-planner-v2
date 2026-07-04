@@ -23,11 +23,23 @@ export default function MealPlanView({
     const [shoppingList, setShoppingList] = useState<ShoppingListResponse | null>(null);
     const [isShoppingListLoading, setIsShoppingListLoading] = useState(false);
     const [shoppingListError, setShoppingListError] = useState<string | null>(null);
+    const [acceptedRecipeIds, setAcceptedRecipeIds] = useState<Set<string>>(new Set());
+    const [acceptError, setAcceptError] = useState<string | null>(null);
+
+    const acceptedCount = acceptedRecipeIds.size;
+    const totalCount = mealPlan.recipes.length;
 
     const handleReject = async (recipe: Recipe, index: number) => {
         try {
             // Record rejection
             await recordFeedback(mealPlan.id, recipe.id, 'rejected');
+
+            // Remove from accepted set if it was accepted
+            setAcceptedRecipeIds(prev => {
+                const next = new Set(prev);
+                next.delete(recipe.id);
+                return next;
+            });
 
             // Get replacement
             const replacements = await getMealPlanRecommendations(mealPlan.id, 1);
@@ -47,10 +59,23 @@ export default function MealPlanView({
     };
 
     const handleAccept = async (recipe: Recipe) => {
+        // Guard against duplicate accepts (idempotent in UI)
+        if (acceptedRecipeIds.has(recipe.id)) return;
+
+        // Optimistic update
+        setAcceptedRecipeIds(prev => new Set([...prev, recipe.id]));
+        setAcceptError(null);
+
         try {
             await recordFeedback(mealPlan.id, recipe.id, 'accepted');
-            // Visual feedback could be added here
         } catch (error) {
+            // Revert on failure
+            setAcceptedRecipeIds(prev => {
+                const next = new Set(prev);
+                next.delete(recipe.id);
+                return next;
+            });
+            setAcceptError('Failed to accept recipe. Please try again.');
             console.error('Failed to accept recipe:', error);
         }
     };
@@ -72,14 +97,26 @@ export default function MealPlanView({
 
     const handleReplaceWithSpecific = async (recipe: Recipe, index: number) => {
         try {
-            // Record rejection of old recipe
-            await recordFeedback(mealPlan.id, mealPlan.recipes[index].id, 'rejected');
+            const oldRecipe = mealPlan.recipes[index];
 
-            // Record acceptance of new recipe
-            await recordFeedback(mealPlan.id, recipe.id, 'accepted');
+            // Record rejection of old recipe
+            await recordFeedback(mealPlan.id, oldRecipe.id, 'rejected');
+
+            // Auto-accept the chosen replacement — guard against re-firing if already accepted
+            if (!acceptedRecipeIds.has(recipe.id)) {
+                await recordFeedback(mealPlan.id, recipe.id, 'accepted');
+            }
 
             const updatedRecipes = [...mealPlan.recipes];
             updatedRecipes[index] = recipe;
+
+            // Update accepted set: remove old recipe, add new recipe
+            setAcceptedRecipeIds(prev => {
+                const next = new Set(prev);
+                next.delete(oldRecipe.id);
+                next.add(recipe.id);
+                return next;
+            });
 
             onMealPlanUpdated({
                 ...mealPlan,
@@ -88,6 +125,7 @@ export default function MealPlanView({
 
             setReplacingIndex(null);
         } catch (error) {
+            setAcceptError('Failed to replace recipe. Please try again.');
             console.error('Failed to replace recipe:', error);
         }
     };
@@ -100,15 +138,23 @@ export default function MealPlanView({
                         Your {mealPlan.recipes.length}-Day Meal Plan
                     </h2>
                     <p className="text-sm text-gray-600 mt-1">
-                        Click ✓ to accept or ✗ to get a different recipe
+                        {acceptedCount} of {totalCount} accepted
                     </p>
+                    {acceptError && (
+                        <p className="text-sm text-red-600 mt-1" role="alert">
+                            {acceptError}
+                        </p>
+                    )}
                 </div>
                 <div className="flex gap-2">
                     <button
                         onClick={handleViewShoppingList}
-                        className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                        disabled={acceptedCount === 0}
+                        className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        View Shopping List
+                        {acceptedCount > 0
+                            ? `View Shopping List (${acceptedCount})`
+                            : 'View Shopping List'}
                     </button>
                     <button
                         onClick={onReset}
@@ -143,6 +189,7 @@ export default function MealPlanView({
                         ) : (
                             <RecipeCard
                                 recipe={recipe}
+                                isAccepted={acceptedRecipeIds.has(recipe.id)}
                                 onAccept={() => handleAccept(recipe)}
                                 onReject={() => handleReject(recipe, index)}
                             />

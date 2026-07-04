@@ -364,4 +364,85 @@ public class ShoppingListResourceTest {
                 .then()
                 .statusCode(404);
     }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
+    public void testAcceptThenRejectIsAbsentFromShoppingList() {
+        // Regression: previously the ACCEPTED row remained after a later REJECT,
+        // so the recipe stayed in the shopping list (ghost bug).
+        Recipe recipe = persistRecipe("Ghost Recipe", new IngredientSpec("butter", 100f, "g"));
+        accept(recipe);
+        reject(recipe);
+
+        Map<String, Object> response = getShoppingList(mealPlan.id.toString());
+        List<Map<String, Object>> ingredients = ingredientsOf(response);
+
+        assertNull(findIngredient(ingredients, "butter"),
+                "Recipe accepted then rejected must not appear in shopping list");
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
+    public void testRejectThenAcceptIsPresentInShoppingList() {
+        // Reject first, then re-accept: the latest ACCEPTED timestamp should win.
+        Recipe recipe = persistRecipe("Reinstated Recipe", new IngredientSpec("olive oil", 50f, "ml"));
+        reject(recipe);
+        accept(recipe);
+
+        Map<String, Object> response = getShoppingList(mealPlan.id.toString());
+        List<Map<String, Object>> ingredients = ingredientsOf(response);
+
+        assertNotNull(findIngredient(ingredients, "olive oil"),
+                "Recipe rejected then accepted must appear in shopping list");
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
+    public void testDoubleAcceptIsIdempotent() {
+        // Submitting the same ACCEPTED feedback twice must return 200 both times
+        // (not 500 from a unique constraint violation) and the recipe appears once.
+        Recipe recipe = persistRecipe("Double Accept Recipe", new IngredientSpec("flour", 200f, "g"));
+
+        given()
+                .contentType(jakarta.ws.rs.core.MediaType.APPLICATION_JSON)
+                .body("{\"recipe_id\": \"" + recipe.id + "\", \"action\": \"ACCEPTED\"}")
+                .when()
+                .post("/api/meal-plans/{id}/feedback", mealPlan.id.toString())
+                .then()
+                .statusCode(200);
+
+        given()
+                .contentType(jakarta.ws.rs.core.MediaType.APPLICATION_JSON)
+                .body("{\"recipe_id\": \"" + recipe.id + "\", \"action\": \"ACCEPTED\"}")
+                .when()
+                .post("/api/meal-plans/{id}/feedback", mealPlan.id.toString())
+                .then()
+                .statusCode(200);
+
+        Map<String, Object> response = getShoppingList(mealPlan.id.toString());
+        List<Map<String, Object>> ingredients = ingredientsOf(response);
+
+        Map<String, Object> flour = findIngredient(ingredients, "flour");
+        assertNotNull(flour, "Double-accepted recipe must appear in shopping list");
+        assertEquals(1, ingredients.size(), "Recipe should appear exactly once");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> amounts = (List<Map<String, Object>>) flour.get("amounts");
+        assertEquals(1, amounts.size(), "Ingredient should have a single amount entry");
+        assertEquals(200.0f, ((Number) amounts.get(0).get("quantity")).floatValue(),
+                "Quantity must not be doubled (expected 200 g, not 400 g — verifies ON CONFLICT idempotency)");
+        assertEquals("g", amounts.get(0).get("unit"));
+    }
 }

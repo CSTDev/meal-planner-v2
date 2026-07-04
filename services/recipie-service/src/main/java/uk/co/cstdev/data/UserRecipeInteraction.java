@@ -10,9 +10,10 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
-@Table(name = "user_recipe_interactions")
+@Table(name = "user_recipe_interactions", uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "recipe_id", "meal_plan_id", "interaction_type"}))
 public class UserRecipeInteraction extends PanacheEntityBase {
 
     @Id

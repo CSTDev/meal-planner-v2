@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
 import uk.co.cstdev.data.Ingredient;
 import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.UserRecipeInteraction;
@@ -18,9 +20,26 @@ import uk.co.cstdev.data.mealplan.ShoppingListResponse;
 @ApplicationScoped
 public class ShoppingListService {
 
+    @Inject
+    EntityManager em;
+
     public ShoppingListResponse buildShoppingList(UUID mealPlanId, UUID userId) {
-        List<UserRecipeInteraction> acceptedInteractions = UserRecipeInteraction
-                .list("mealPlanId = ?1 and userId = ?2 and interactionType = ?3", mealPlanId, userId, "ACCEPTED");
+        // Latest-interaction-wins: include a recipe only when its most-recent
+        // interaction for this (user, recipe, meal_plan) is ACCEPTED, i.e. no
+        // REJECTED row exists that is newer than the ACCEPTED row.
+        @SuppressWarnings("unchecked")
+        List<UserRecipeInteraction> acceptedInteractions = em.createQuery(
+                "SELECT i FROM UserRecipeInteraction i " +
+                "WHERE i.mealPlanId = :mealPlanId AND i.userId = :userId AND i.interactionType = 'ACCEPTED' " +
+                "AND NOT EXISTS (" +
+                "  SELECT r FROM UserRecipeInteraction r " +
+                "  WHERE r.mealPlanId = :mealPlanId AND r.userId = :userId AND r.recipeId = i.recipeId " +
+                "  AND r.interactionType = 'REJECTED' AND r.interactionAt > i.interactionAt" +
+                ")",
+                UserRecipeInteraction.class)
+                .setParameter("mealPlanId", mealPlanId)
+                .setParameter("userId", userId)
+                .getResultList();
 
         // Preserve first-seen order of normalised ingredient names.
         Map<String, List<IngredientContribution>> contributionsByName = new LinkedHashMap<>();
