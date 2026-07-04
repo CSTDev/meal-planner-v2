@@ -63,14 +63,14 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
                 WHERE r.id NOT IN (
                     -- Exclude recipes already accepted in this meal plan
                     SELECT recipe_id FROM user_recipe_interactions
-                    WHERE interaction_type = 'ACCEPTED'
+                    WHERE interaction_type = :acceptedType
                     AND meal_plan_id = :meal_plan_id
                     and user_id = :user_id
                 )
                 AND r.id NOT IN (
                     -- Exclude recipes rejected in this meal plan
                     SELECT recipe_id FROM user_recipe_interactions
-                    WHERE interaction_type = 'REJECTED'
+                    WHERE interaction_type = :rejectedType
                     AND meal_plan_id = :meal_plan_id
                     and user_id = :user_id
                 )
@@ -88,6 +88,8 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
                 .setParameter("num_recipes", numRecipes)
                 .setParameter("meal_plan_id", mealPlanId)
                 .setParameter("user_id", userId)
+                .setParameter("acceptedType", FeedbackAction.ACCEPTED.name())
+                .setParameter("rejectedType", FeedbackAction.REJECTED.name())
                 .getResultList();
     }
 
