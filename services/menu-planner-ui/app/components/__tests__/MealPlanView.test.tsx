@@ -284,6 +284,34 @@ describe('MealPlanView acceptance state', () => {
         expect(screen.getByText(/0 of 1 accepted/i)).toBeInTheDocument();
     });
 
+    it('Choose Different shows an error when the accept call fails after the reject succeeds', async () => {
+        const user = userEvent.setup();
+        (recipesApi.searchRecipes as jest.Mock).mockResolvedValue([recipe3]);
+        // First call (reject old recipe) succeeds; second call (accept new recipe) throws
+        (mealPlansApi.recordFeedback as jest.Mock)
+            .mockResolvedValueOnce(undefined)
+            .mockRejectedValueOnce(new Error('network error'));
+
+        render(<StatefulMealPlanView initialMealPlan={{ ...mockMealPlan, recipes: [recipe1] }} />);
+
+        await user.click(screen.getByRole('button', { name: /choose different/i }));
+
+        const searchInput = screen.getByPlaceholderText(/search for a recipe/i);
+        await user.type(searchInput, 'French');
+
+        await waitFor(() => {
+            expect(screen.getByText('French Toast')).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByText('French Toast'));
+
+        await waitFor(() => {
+            expect(screen.getByRole('alert')).toBeInTheDocument();
+        });
+
+        expect(screen.getByRole('alert').textContent).toMatch(/failed to replace/i);
+    });
+
     it('client dedup guard: Choose Different re-landing an already-accepted recipe fires ACCEPTED only once', async () => {
         const user = userEvent.setup();
         // Search returns recipe-1 (which will already be accepted)

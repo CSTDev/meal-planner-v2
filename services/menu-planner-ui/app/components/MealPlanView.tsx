@@ -125,6 +125,7 @@ export default function MealPlanView({
 
             setReplacingIndex(null);
         } catch (error) {
+            setAcceptError('Failed to replace recipe. Please try again.');
             console.error('Failed to replace recipe:', error);
         }
     };
