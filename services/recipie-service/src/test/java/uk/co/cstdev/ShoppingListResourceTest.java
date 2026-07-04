@@ -434,8 +434,15 @@ public class ShoppingListResourceTest {
         Map<String, Object> response = getShoppingList(mealPlan.id.toString());
         List<Map<String, Object>> ingredients = ingredientsOf(response);
 
-        assertNotNull(findIngredient(ingredients, "flour"),
-                "Double-accepted recipe must appear in shopping list");
+        Map<String, Object> flour = findIngredient(ingredients, "flour");
+        assertNotNull(flour, "Double-accepted recipe must appear in shopping list");
         assertEquals(1, ingredients.size(), "Recipe should appear exactly once");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> amounts = (List<Map<String, Object>>) flour.get("amounts");
+        assertEquals(1, amounts.size(), "Ingredient should have a single amount entry");
+        assertEquals(200.0f, ((Number) amounts.get(0).get("quantity")).floatValue(),
+                "Quantity must not be doubled (expected 200 g, not 400 g — verifies ON CONFLICT idempotency)");
+        assertEquals("g", amounts.get(0).get("unit"));
     }
 }
