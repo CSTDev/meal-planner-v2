@@ -417,7 +417,7 @@ public class ShoppingListResourceTest {
 
         given()
                 .contentType(jakarta.ws.rs.core.MediaType.APPLICATION_JSON)
-                .body("{\"recipe_id\": \"" + recipe.id + "\", \"action\": \"ACCEPTED\"}")
+                .body("{\"recipe_id\": \"" + recipe.id + "\", \"action\": \"" + FeedbackAction.ACCEPTED.name() + "\"}")
                 .when()
                 .post("/api/meal-plans/{id}/feedback", mealPlan.id.toString())
                 .then()
@@ -425,7 +425,7 @@ public class ShoppingListResourceTest {
 
         given()
                 .contentType(jakarta.ws.rs.core.MediaType.APPLICATION_JSON)
-                .body("{\"recipe_id\": \"" + recipe.id + "\", \"action\": \"ACCEPTED\"}")
+                .body("{\"recipe_id\": \"" + recipe.id + "\", \"action\": \"" + FeedbackAction.ACCEPTED.name() + "\"}")
                 .when()
                 .post("/api/meal-plans/{id}/feedback", mealPlan.id.toString())
                 .then()

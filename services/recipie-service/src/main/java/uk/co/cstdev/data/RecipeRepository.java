@@ -37,7 +37,7 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
                     and user_id = :user_id
                 )
                 AND r.id NOT IN (
-                    -- Exclude recently shown recipes (last 30 days)
+                    -- Exclude recently shown recipes (last 90 days)
                     SELECT recipe_id FROM user_recipe_interactions
                     WHERE interaction_at > NOW() - INTERVAL '90 days'
                     and user_id = :user_id
