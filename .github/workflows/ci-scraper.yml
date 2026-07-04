@@ -16,9 +16,28 @@ env:
   IMAGE_NAME: ghcr.io/cstdev/meal-planner-scraper
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r services/scraper/requirements.txt
+
+      - name: Run pytest
+        run: python -m pytest services/scraper/tests/ -v
+
   build-and-push:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: test
     permissions:
       contents: read
       packages: write
