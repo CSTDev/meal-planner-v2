@@ -64,11 +64,24 @@ Run `/build-and-review` with the task description as input (up to 3 implementer 
 - All code changes go on the `meal-planner-v2` feature branch.
 - Progress notes added to the task body during the loop go on the **second-brain feature branch** (not main).
 
+### What the implementer should fix
+
+The implementer should fix **all review comments that are small and directly related to the work in scope** — not just critical blockers. If the reviewer flags a weak test, a stale comment, an inconsistent pattern, or a minor correctness issue in the code being changed, fix it in the same iteration rather than deferring it.
+
+### What becomes a triage task instead
+
+Create a separate task file (Step 5) for comments that are **out of scope for this task**:
+
+- A pattern or bug noticed elsewhere in the codebase that wasn't introduced by this task (e.g. a sibling route has the same flaw, but fixing it isn't part of the current spec).
+- Wide-sweeping or architectural changes that would require touching many files or making a design decision beyond the current task's boundaries.
+
+If in doubt: small and local → fix it. Cross-cutting or elsewhere in the codebase → task file.
+
 ---
 
 ## Step 5 — After the loop completes: triage tasks
 
-If the reviewer's final pass left any **minor, non-critical comments unresolved** (warnings or suggestions the loop didn't address), create a task file for each one in `second-brain/projects/menu-planner/tasks/` with:
+For any reviewer comment that was **not fixed** because it falls into the "out of scope" category above, create a task file in `second-brain/projects/menu-planner/tasks/` with:
 
 ```yaml
 Status: Not Started
@@ -76,7 +89,7 @@ Tags:
   - needs-triage
 ```
 
-Commit these to the **second-brain feature branch**. Skip this step if all comments were resolved.
+Commit these to the **second-brain feature branch**. Skip this step if no out-of-scope comments remain.
 
 ---
 
