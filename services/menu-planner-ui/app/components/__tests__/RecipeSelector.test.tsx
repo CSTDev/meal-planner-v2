@@ -29,6 +29,10 @@ describe('RecipeSelector', () => {
         jest.clearAllMocks();
     });
 
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
     it('typing >= 2 characters triggers search and renders one row per returned recipe', async () => {
         const user = userEvent.setup();
         (recipesApi.searchRecipes as jest.Mock).mockResolvedValue([mockRecipe1, mockRecipe2]);
@@ -75,8 +79,6 @@ describe('RecipeSelector', () => {
 
         expect(screen.queryByText('Chicken Tikka Masala')).not.toBeInTheDocument();
         expect(recipesApi.searchRecipes).not.toHaveBeenCalled();
-
-        jest.useRealTimers();
     });
 
     it('empty list from API renders the No recipes found state', async () => {
