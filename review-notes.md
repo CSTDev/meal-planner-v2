@@ -155,3 +155,32 @@ SUMMARY: Looks good.
   "summary": "Looks good."
 }
 ---
+
+## Review cycle 7 — 2026-07-05
+
+STATUS: APPROVED
+
+CRITICAL:
+- none
+
+WARNINGS:
+- The frontend test `'fewer than 2 characters shows no dropdown and fires no request'` (RecipeSelector.test.tsx) asserts `searchRecipes not.toHaveBeenCalled()` immediately after `await user.type(input, 't')`, without advancing past the 300ms debounce. The assertions pass trivially because they run before the timer fires — not because the component's `searchQuery.length >= 2` guard blocked anything. The test comment "the debounce fires but search length < 2 so API is not called" is therefore inaccurate. The underlying component logic is correct, but the test does not exercise it: using `jest.useFakeTimers()` and advancing 300ms+ would make this test actually verify the specified behaviour rather than winning on a timing race.
+- The `recipe-search` proxy route (`app/api/meal-plans/[id]/recipe-search/route.ts`) correctly propagates the backend HTTP status code to the browser on error (returning `{ status: response.status }`), whereas the sibling `recommendations` route always returns 500 (`throw new Error(...)` falls into the outer catch). This divergence is an improvement — 403/404 from the backend now reach the browser correctly — but it leaves the two proxy siblings with inconsistent client-visible error behaviour. The recommendations route should be updated to match this better pattern for consistency.
+
+SUGGESTIONS:
+- `RecipeService.searchRecipes` contains a `q == null || q.isBlank()` guard that is already exercised in `MealPlanResource.searchRecipes` before the service is ever called. The service guard is dead code in the current call chain. It is harmless as defensive programming, but removing it (or documenting it as an internal invariant check) would reduce confusion.
+- The `userId` parameter is threaded from Resource → Service → Repository and bound as `user_id = :user_id` in the NOT IN subquery. Because ownership is validated before the call, `meal_plan_id` already scopes the exclusion to this user's plan; the `user_id` filter is redundant. This is consistent with `findRecommendations` and is not wrong — but a brief comment in `searchByTitle` would make the intent clear to future maintainers.
+
+SUMMARY: Looks good.
+
+---json
+{
+  "status": "APPROVED",
+  "critical": [],
+  "warnings": [
+    "RecipeSelector.test.tsx 'fewer than 2 characters' test asserts before the 300ms debounce fires; assertions pass trivially on timing rather than actually exercising the length < 2 guard. Use jest.useFakeTimers() and advance past 300ms to make the test meaningful.",
+    "recipe-search proxy route correctly propagates backend status codes (403, 404) while the recommendations proxy always returns 500 on backend error — inconsistent sibling behaviour; update the recommendations route to propagate status codes the same way."
+  ],
+  "summary": "Looks good."
+}
+---
