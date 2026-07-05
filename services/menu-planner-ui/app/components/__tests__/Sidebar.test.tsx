@@ -59,9 +59,11 @@ describe('Sidebar – mobile rail (collapsed state)', () => {
         expect(within(rail).queryByText('My Recipes')).not.toBeInTheDocument();
     });
 
-    it('does not render the expanded overlay when collapsed', () => {
+    it('overlay is present in the DOM but hidden (aria-hidden) when collapsed', () => {
         renderSidebar();
-        expect(screen.queryByTestId('sidebar-mobile-overlay')).not.toBeInTheDocument();
+        const overlay = screen.getByTestId('sidebar-mobile-overlay');
+        expect(overlay).toBeInTheDocument();
+        expect(overlay).toHaveAttribute('aria-hidden', 'true');
     });
 
     it('does not show Sign Out in the collapsed rail', () => {
@@ -72,11 +74,11 @@ describe('Sidebar – mobile rail (collapsed state)', () => {
 });
 
 describe('Sidebar – expand/collapse behaviour', () => {
-    it('clicking the chevron expands the overlay', async () => {
+    it('clicking the chevron expands the overlay (aria-hidden becomes false)', async () => {
         const user = userEvent.setup();
         renderSidebar();
         await user.click(screen.getByRole('button', { name: /open sidebar/i }));
-        expect(screen.getByTestId('sidebar-mobile-overlay')).toBeInTheDocument();
+        expect(screen.getByTestId('sidebar-mobile-overlay')).toHaveAttribute('aria-hidden', 'false');
     });
 
     it('clicking the chevron again collapses the overlay', async () => {
@@ -84,7 +86,7 @@ describe('Sidebar – expand/collapse behaviour', () => {
         renderSidebar();
         await user.click(screen.getByRole('button', { name: /open sidebar/i }));
         await user.click(screen.getByRole('button', { name: /close sidebar/i }));
-        expect(screen.queryByTestId('sidebar-mobile-overlay')).not.toBeInTheDocument();
+        expect(screen.getByTestId('sidebar-mobile-overlay')).toHaveAttribute('aria-hidden', 'true');
     });
 
     it('clicking a nav link in the expanded overlay collapses it', async () => {
@@ -93,7 +95,7 @@ describe('Sidebar – expand/collapse behaviour', () => {
         await user.click(screen.getByRole('button', { name: /open sidebar/i }));
         const overlay = screen.getByTestId('sidebar-mobile-overlay');
         await user.click(within(overlay).getAllByRole('link')[0]);
-        expect(screen.queryByTestId('sidebar-mobile-overlay')).not.toBeInTheDocument();
+        expect(screen.getByTestId('sidebar-mobile-overlay')).toHaveAttribute('aria-hidden', 'true');
     });
 
     it('clicking the backdrop collapses the overlay', async () => {
@@ -101,7 +103,7 @@ describe('Sidebar – expand/collapse behaviour', () => {
         renderSidebar();
         await user.click(screen.getByRole('button', { name: /open sidebar/i }));
         await user.click(screen.getByTestId('sidebar-backdrop'));
-        expect(screen.queryByTestId('sidebar-mobile-overlay')).not.toBeInTheDocument();
+        expect(screen.getByTestId('sidebar-mobile-overlay')).toHaveAttribute('aria-hidden', 'true');
     });
 
     it('pressing Escape collapses the overlay', async () => {
@@ -109,7 +111,7 @@ describe('Sidebar – expand/collapse behaviour', () => {
         renderSidebar();
         await user.click(screen.getByRole('button', { name: /open sidebar/i }));
         await user.keyboard('{Escape}');
-        expect(screen.queryByTestId('sidebar-mobile-overlay')).not.toBeInTheDocument();
+        expect(screen.getByTestId('sidebar-mobile-overlay')).toHaveAttribute('aria-hidden', 'true');
     });
 });
 
@@ -131,8 +133,8 @@ describe('Sidebar – expanded overlay content', () => {
         const rail = screen.getByTestId('sidebar-mobile-rail');
         expect(within(rail).queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument();
 
-        // Sign Out must not be present in overlay before it exists
-        expect(screen.queryByTestId('sidebar-mobile-overlay')).not.toBeInTheDocument();
+        // Overlay is in DOM but aria-hidden before expanding
+        expect(screen.getByTestId('sidebar-mobile-overlay')).toHaveAttribute('aria-hidden', 'true');
 
         await user.click(screen.getByRole('button', { name: /open sidebar/i }));
         const overlay = screen.getByTestId('sidebar-mobile-overlay');
@@ -145,6 +147,6 @@ describe('Sidebar – expanded overlay content', () => {
         const rail = screen.getByTestId('sidebar-mobile-rail');
         const navLinks = within(rail).getAllByRole('link');
         await user.click(navLinks[0]);
-        expect(screen.queryByTestId('sidebar-mobile-overlay')).not.toBeInTheDocument();
+        expect(screen.getByTestId('sidebar-mobile-overlay')).toHaveAttribute('aria-hidden', 'true');
     });
 });
