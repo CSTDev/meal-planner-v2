@@ -121,9 +121,7 @@ describe('MealPlanView shopping list integration', () => {
 
         await user.click(screen.getByRole('button', { name: /view shopping list/i }));
 
-        await waitFor(() => {
-            expect(screen.getByRole('button', { name: /print shopping list/i })).toBeInTheDocument();
-        });
+        expect(screen.getByRole('button', { name: /print shopping list/i })).toBeInTheDocument();
 
         await user.click(screen.getByRole('button', { name: /print shopping list/i }));
         expect(window.print).toHaveBeenCalledTimes(1);

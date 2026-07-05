@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import RecipeCard from '@/app/components/RecipeCard';
 import RecipeSelector from '@/app/components/RecipeSelector';
 import ShoppingList from '@/app/components/ShoppingList';
@@ -28,6 +28,15 @@ export default function MealPlanView({
 
     const acceptedCount = acceptedRecipeIds.size;
     const totalCount = mealPlan.recipes.length;
+
+    useEffect(() => {
+        if (isShoppingListOpen) {
+            document.body.classList.add('shopping-list-open');
+        } else {
+            document.body.classList.remove('shopping-list-open');
+        }
+        return () => document.body.classList.remove('shopping-list-open');
+    }, [isShoppingListOpen]);
 
     const handleReject = async (recipe: Recipe, index: number) => {
         setAcceptError(null);
@@ -211,6 +220,7 @@ export default function MealPlanView({
                             <h3 className="text-xl font-bold text-gray-900">Shopping List</h3>
                             <div className="shopping-list-controls flex items-center gap-2">
                                 <button
+                                    type="button"
                                     onClick={() => window.print()}
                                     aria-label="Print shopping list"
                                     className="text-gray-500 hover:text-gray-700"
@@ -222,6 +232,7 @@ export default function MealPlanView({
                                     </svg>
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => setIsShoppingListOpen(false)}
                                     aria-label="Close shopping list"
                                     className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
