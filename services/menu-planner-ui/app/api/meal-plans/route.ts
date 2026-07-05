@@ -34,7 +34,10 @@ export async function POST(request: NextRequest) {
         if (!response.ok) {
             const errorText = await response.text();
             console.error('Backend error:', errorText);
-            throw new Error(`Backend returned ${response.status}`);
+            return NextResponse.json(
+                { message: 'Failed to create meal plan' },
+                { status: response.status }
+            );
         }
 
         const data = await response.json();
