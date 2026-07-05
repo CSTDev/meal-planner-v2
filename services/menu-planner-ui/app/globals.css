@@ -24,3 +24,38 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@media print {
+  .meal-plan-main-header,
+  .recipe-grid {
+    display: none !important;
+  }
+
+  .shopping-list-overlay {
+    position: static !important;
+    display: block !important;
+    height: auto !important;
+  }
+
+  .shopping-list-backdrop {
+    display: none !important;
+  }
+
+  .shopping-list-pane {
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+
+  .shopping-list-controls {
+    display: none !important;
+  }
+
+  .ingredient-breakdown,
+  .ingredient-chevron {
+    display: none !important;
+  }
+}

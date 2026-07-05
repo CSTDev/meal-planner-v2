@@ -60,6 +60,7 @@ const mockMealPlan: MealPlan = {
 describe('MealPlanView shopping list integration', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        window.print = jest.fn();
     });
 
     it('fetches and displays the shopping list when the button is clicked', async () => {
@@ -98,6 +99,34 @@ describe('MealPlanView shopping list integration', () => {
         await waitFor(() => {
             expect(screen.getByText(/chicken breast/i)).toBeInTheDocument();
         });
+    });
+
+    it('shows a print button in the shopping list panel that calls window.print', async () => {
+        const user = userEvent.setup();
+        (mealPlansApi.recordFeedback as jest.Mock).mockResolvedValue(undefined);
+        (mealPlansApi.getShoppingList as jest.Mock).mockResolvedValue({ ingredients: [] });
+
+        render(
+            <MealPlanView
+                mealPlan={{ ...mockMealPlan, recipes: [recipe1] }}
+                onMealPlanUpdated={jest.fn()}
+                onReset={jest.fn()}
+            />
+        );
+
+        await user.click(screen.getAllByRole('button', { name: /accept/i })[0]);
+        await waitFor(() => {
+            expect(screen.getByText(/1 of 1 accepted/i)).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole('button', { name: /view shopping list/i }));
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: /print shopping list/i })).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole('button', { name: /print shopping list/i }));
+        expect(window.print).toHaveBeenCalledTimes(1);
     });
 });
 

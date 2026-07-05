@@ -38,12 +38,12 @@ function IngredientRow({ ingredient }: { ingredient: ShoppingListIngredient }) {
                 </span>
                 <span className="flex items-center gap-2 text-sm text-gray-600">
                     {amountsText && <span>{amountsText}</span>}
-                    <span className="text-gray-400">{expanded ? '▲' : '▼'}</span>
+                    <span className="ingredient-chevron text-gray-400">{expanded ? '▲' : '▼'}</span>
                 </span>
             </button>
 
             {expanded && (
-                <ul className="mt-2 pl-4 space-y-1 text-sm text-gray-600">
+                <ul className="ingredient-breakdown mt-2 pl-4 space-y-1 text-sm text-gray-600">
                     {ingredient.breakdown.map((entry, index) => (
                         <li key={`${entry.recipeId}-${index}`} className="flex justify-between">
                             <span>{entry.recipeTitle}</span>
