@@ -28,3 +28,32 @@ SUMMARY: The `meal-plans` POST route at `/app/api/meal-plans/route.ts` was misse
   "summary": "The meal-plans POST route was not updated alongside recommendations and feedback — it still swallows backend 4xx status codes as 500 and must be fixed with the same return NextResponse.json pattern."
 }
 ---
+
+## Review cycle 2 — 2026-07-05
+
+STATUS: APPROVED
+
+CRITICAL:
+- none
+
+WARNINGS:
+- `services/menu-planner-ui/app/api/recipes/route.ts` line 42 still uses `throw new Error(...)` in the `!response.ok` block, making it the one remaining proxy route that always returns HTTP 500 to the client regardless of the actual backend status. This is pre-existing and outside the scope of this commit, but is now the only remaining outlier after this fix.
+- The unredacted backend error logging concern from cycle 1 remains outstanding. `errorText` is still read from the backend response and passed directly to `console.error` in the changed file, and in all the sibling routes. Not introduced by this commit.
+
+SUGGESTIONS:
+- The client-side `createMealPlan()` function in `lib/api/mealPlans.ts` (line 39–41) catches non-OK responses but discards the status code, throwing a uniform `'Failed to create meal plan'` regardless of whether the backend returned 400, 409, or 503. Now that the proxy correctly propagates the backend status code, the client could inspect it and surface more specific error messages to the user without any further server changes.
+- There are no route-handler unit tests for any of the Next.js API proxy routes. A test for the `POST /api/meal-plans` `!response.ok` branch (asserting that the backend status code is forwarded, not always 500) would have caught the bug addressed in this commit and prevented regression. Given the pattern has now been applied across five routes, a shared test helper for the proxy error path would be low-effort and high-value.
+
+SUMMARY: Looks good — the critical status-code propagation bug identified in cycle 1 is correctly fixed, and the implementation is now consistent with all other proxy routes in the codebase.
+
+---json
+{
+  "status": "APPROVED",
+  "critical": [],
+  "warnings": [
+    "services/menu-planner-ui/app/api/recipes/route.ts is now the sole remaining proxy route that throws inside !response.ok and always returns 500 for backend errors — pre-existing, not introduced here",
+    "Backend error bodies are still logged unredacted via console.error across all proxy routes — pre-existing concern from cycle 1, not introduced here"
+  ],
+  "summary": "Looks good."
+}
+---
