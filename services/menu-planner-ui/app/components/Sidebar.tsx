@@ -139,6 +139,15 @@ export default function Sidebar() {
                 </div>
             </div>
 
+            {/* Spacer – reserves 56px in the flex row for the fixed rail on mobile.
+                Exists only when the user is authenticated (Sidebar returns null otherwise),
+                so unauthenticated pages (login/signup) get no left offset. */}
+            <div
+                data-testid="sidebar-mobile-spacer"
+                className="md:hidden w-14 flex-shrink-0"
+                aria-hidden="true"
+            />
+
             {/* ── Desktop / tablet layout (md and above) – unchanged ── */}
             <div
                 data-testid="sidebar-desktop"

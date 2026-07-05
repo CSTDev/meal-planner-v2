@@ -37,6 +37,19 @@ describe('Sidebar – unauthenticated', () => {
         const { container } = render(<Sidebar />);
         expect(container).toBeEmptyDOMElement();
     });
+
+    it('does not render the mobile rail spacer when unauthenticated', () => {
+        (useAuth as jest.Mock).mockReturnValue({ user: null, signOut: jest.fn() });
+        render(<Sidebar />);
+        expect(screen.queryByTestId('sidebar-mobile-spacer')).not.toBeInTheDocument();
+    });
+});
+
+describe('Sidebar – mobile rail spacer', () => {
+    it('renders a spacer element when authenticated so main content clears the fixed rail', () => {
+        renderSidebar();
+        expect(screen.getByTestId('sidebar-mobile-spacer')).toBeInTheDocument();
+    });
 });
 
 describe('Sidebar – mobile rail (collapsed state)', () => {
