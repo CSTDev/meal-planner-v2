@@ -51,4 +51,11 @@ public class RecipeService {
         return recipeRepository.findRecommendations(numRecipes, UUID.fromString(mealPlanId), userId);
     }
 
+    public List<Recipe> searchRecipes(String q, String mealPlanId, UUID userId) {
+        if (q == null || q.isBlank()) {
+            return List.of();
+        }
+        return recipeRepository.searchByTitle(q, UUID.fromString(mealPlanId), userId);
+    }
+
 }

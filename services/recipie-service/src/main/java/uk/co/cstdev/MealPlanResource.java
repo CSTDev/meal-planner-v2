@@ -113,6 +113,43 @@ public class MealPlanResource {
         }
 
         @GET
+        @Path("/{id}/recipe-search")
+        @Operation(summary = "Search recipes for a meal plan", description = "Returns recipes whose title matches the query, excluding already-accepted recipes in this plan")
+        @APIResponse(responseCode = "200", description = "List of matching recipes")
+        @APIResponse(responseCode = "401", description = "Unauthorized")
+        @APIResponse(responseCode = "403", description = "Meal plan does not belong to the authenticated user")
+        @APIResponse(responseCode = "404", description = "Meal plan not found")
+        public Response searchRecipes(@PathParam("id") String id,
+                        @QueryParam("q") String q) {
+                String userId = jwt.getSubject();
+
+                MealPlan mealPlan;
+                try {
+                        mealPlan = MealPlan.findById(UUID.fromString(id));
+                } catch (IllegalArgumentException e) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan == null) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan.userId == null || !mealPlan.userId.toString().equals(userId)) {
+                        return Response.status(Response.Status.FORBIDDEN).build();
+                }
+
+                if (q == null || q.isBlank()) {
+                        return Response.ok(List.of()).build();
+                }
+
+                List<Recipe> results = recipeService.searchRecipes(q, id, UUID.fromString(userId));
+                List<RecipeDTO> dtos = results.stream()
+                                .map(RecipeDTO::from)
+                                .toList();
+                return Response.ok(dtos).build();
+        }
+
+        @GET
         @Path("/{id}/shopping-list")
         @Operation(summary = "Get shopping list for a meal plan", description = "Aggregates ingredients across all accepted recipes in the meal plan")
         @APIResponse(responseCode = "200", description = "Aggregated shopping list")

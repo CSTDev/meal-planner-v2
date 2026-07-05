@@ -26,7 +26,7 @@ export default function RecipeSelector({
             if (searchQuery.length >= 2) {
                 setIsLoading(true);
                 try {
-                    const results = await searchRecipes(searchQuery);
+                    const results = await searchRecipes(mealPlanId, searchQuery);
                     setSuggestions(results);
                     setShowDropdown(true);
                 } catch (error) {
