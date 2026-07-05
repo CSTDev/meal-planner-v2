@@ -37,7 +37,10 @@ export async function GET(
         if (!response.ok) {
             const errorText = await response.text();
             console.error('Backend error:', errorText);
-            throw new Error(`Backend returned ${response.status}`);
+            return NextResponse.json(
+                { message: 'Failed to get recommendations' },
+                { status: response.status }
+            );
         }
 
         const data = await response.json();

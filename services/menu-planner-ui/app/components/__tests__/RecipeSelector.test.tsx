@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import RecipeSelector from '@/app/components/RecipeSelector';
 import * as recipesApi from '@/lib/api/recipes';
@@ -53,7 +53,8 @@ describe('RecipeSelector', () => {
     });
 
     it('fewer than 2 characters shows no dropdown and fires no request', async () => {
-        const user = userEvent.setup();
+        jest.useFakeTimers();
+        const user = userEvent.setup({ delay: null });
         (recipesApi.searchRecipes as jest.Mock).mockResolvedValue([mockRecipe1]);
 
         render(
@@ -67,9 +68,15 @@ describe('RecipeSelector', () => {
         const input = screen.getByPlaceholderText(/search for a recipe/i);
         await user.type(input, 't');
 
-        // No dropdown should appear; the debounce fires but search length < 2 so API is not called
+        // Advance past the debounce to prove the length guard — not timing — prevents the call
+        act(() => {
+            jest.advanceTimersByTime(500);
+        });
+
         expect(screen.queryByText('Chicken Tikka Masala')).not.toBeInTheDocument();
         expect(recipesApi.searchRecipes).not.toHaveBeenCalled();
+
+        jest.useRealTimers();
     });
 
     it('empty list from API renders the No recipes found state', async () => {

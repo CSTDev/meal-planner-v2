@@ -35,7 +35,12 @@ export async function POST(
         );
 
         if (!response.ok) {
-            throw new Error('Failed to record feedback');
+            const errorText = await response.text();
+            console.error('Backend error:', errorText);
+            return NextResponse.json(
+                { message: 'Failed to record feedback' },
+                { status: response.status }
+            );
         }
 
         return NextResponse.json({ success: true });
