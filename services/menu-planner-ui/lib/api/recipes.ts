@@ -29,9 +29,9 @@ export async function scrapeRecipe(url: string): Promise<ScrapeRecipeResponse> {
     return response.json();
 }
 
-export async function searchRecipes(query: string) {
+export async function searchRecipes(mealPlanId: string, query: string) {
     const response = await fetch(
-        `/api/recipes/search?q=${encodeURIComponent(query)}`,
+        `/api/meal-plans/${mealPlanId}/recipe-search?q=${encodeURIComponent(query)}`,
         {
             method: 'GET',
             headers: {
