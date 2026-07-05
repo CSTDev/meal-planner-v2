@@ -38,8 +38,12 @@ export async function GET(_request: NextRequest) {
         );
 
         if (!response.ok) {
-            const body = await response.text();
-            throw new Error(`Backend returned ${response.status}: ${body}`);
+            const errorText = await response.text();
+            console.error('Backend error:', errorText);
+            return NextResponse.json(
+                { message: 'Failed to search recipes' },
+                { status: response.status }
+            );
         }
 
         const data = await response.json();
