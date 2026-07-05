@@ -18,6 +18,29 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
         return list("scrapedByUserId", userId);
     }
 
+    public List<Recipe> searchByTitle(String q, UUID mealPlanId, UUID userId) {
+        String sql = """
+                SELECT r.*
+                FROM recipes r
+                WHERE r.title ILIKE '%' || :q || '%'
+                AND r.id NOT IN (
+                    SELECT recipe_id FROM user_recipe_interactions
+                    WHERE interaction_type = :acceptedType
+                    AND meal_plan_id = :meal_plan_id
+                    AND user_id = :user_id
+                )
+                ORDER BY r.title ASC
+                LIMIT 10
+                """;
+
+        return em.createNativeQuery(sql, Recipe.class)
+                .setParameter("q", q)
+                .setParameter("meal_plan_id", mealPlanId)
+                .setParameter("user_id", userId)
+                .setParameter("acceptedType", FeedbackAction.ACCEPTED.name())
+                .getResultList();
+    }
+
     public List<Recipe> findRecommendations(int numRecipes, UUID mealPlanId, UUID userId) {
         String hql = """
                 SELECT r.*

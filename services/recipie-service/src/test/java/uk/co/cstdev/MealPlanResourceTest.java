@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -470,5 +471,309 @@ public class MealPlanResourceTest {
                 return user;
         }
 
+        @Transactional
+        MealPlan createMealPlanForUser(UUID userId) {
+                MealPlan plan = MealPlan.Builder.builder()
+                                .userId(userId)
+                                .recipeSource("all")
+                                .status("ACTIVE")
+                                .createdAt(new java.util.Date())
+                                .build();
+                plan.persistAndFlush();
+                return plan;
+        }
+
         // End RecommendationTests
+
+        // Recipe Search Tests
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testRecipeSearchMatchesPartialTitleCaseInsensitive() {
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+
+                // "PAN" (uppercase) should match "Pancakes"
+                List<RecipeDTO> results = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recipe-search?q=PAN".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+
+                assertEquals(1, results.size());
+                assertEquals("Pancakes", results.get(0).title);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testRecipeSearchNoMatchReturnsEmpty() {
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+
+                List<RecipeDTO> results = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recipe-search?q=xyz999notexist".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+
+                assertEquals(0, results.size());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testRecipeSearchExcludesAcceptedRecipes() {
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlan plan = MealPlan.findById(UUID.fromString(response.id()));
+
+                feedbackService.processFeedback(user.id, recipes.getFirst().id, plan.id, FeedbackAction.ACCEPTED);
+
+                List<RecipeDTO> results = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recipe-search?q=pan".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+
+                assertEquals(0, results.size());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testRecipeSearchIncludesRejectedRecipes() {
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlan plan = MealPlan.findById(UUID.fromString(response.id()));
+
+                feedbackService.processFeedback(user.id, recipes.getFirst().id, plan.id, FeedbackAction.REJECTED);
+
+                List<RecipeDTO> results = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recipe-search?q=pan".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+
+                assertEquals(1, results.size());
+                assertEquals("Pancakes", results.get(0).title);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testRecipeSearchLimitsToTenResultsOrderedByTitle() {
+                List<Recipe> extraRecipes = new ArrayList<>();
+                QuarkusTransaction.requiringNew().run(() -> {
+                        for (int i = 1; i <= 12; i++) {
+                                Recipe r = Recipe.Builder.recipe()
+                                                .title("ZZSearchTest %02d".formatted(i))
+                                                .servings(1)
+                                                .build();
+                                r.persist();
+                                extraRecipes.add(r);
+                        }
+                });
+
+                try {
+                        MealPlanResponse response = given()
+                                        .when()
+                                        .contentType("application/json")
+                                        .body("""
+                                                        {"numRecipes": 5, "recipeSource": "all"}
+                                                        """)
+                                        .post("/api/meal-plans")
+                                        .then()
+                                        .statusCode(200)
+                                        .extract()
+                                        .as(MealPlanResponse.class);
+
+                        List<RecipeDTO> results = given()
+                                        .when()
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .get("/api/meal-plans/%s/recipe-search?q=ZZSearchTest".formatted(response.id()))
+                                        .then()
+                                        .statusCode(200)
+                                        .extract()
+                                        .as(new TypeRef<List<RecipeDTO>>() {
+                                        });
+
+                        assertEquals(10, results.size());
+                        assertEquals("ZZSearchTest 01", results.get(0).title);
+                        assertEquals("ZZSearchTest 10", results.get(9).title);
+                } finally {
+                        QuarkusTransaction.requiringNew().run(() -> {
+                                extraRecipes.forEach(r -> Recipe.deleteById(r.id));
+                        });
+                }
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testRecipeSearchWithBlankQReturnsEmpty() {
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+
+                List<RecipeDTO> results = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recipe-search?q=".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+
+                assertEquals(0, results.size());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testRecipeSearchWithMissingQReturnsEmpty() {
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+
+                List<RecipeDTO> results = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recipe-search".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+
+                assertEquals(0, results.size());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testRecipeSearchUnknownPlanReturns404() {
+                String unknownId = UUID.randomUUID().toString();
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recipe-search?q=pan".formatted(unknownId))
+                                .then()
+                                .statusCode(404);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testRecipeSearchPlanOwnedByOtherUserReturns403() {
+                User secondUser = createSecondUser();
+                MealPlan otherPlan = createMealPlanForUser(secondUser.id);
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recipe-search?q=pan".formatted(otherPlan.id))
+                                .then()
+                                .statusCode(403);
+        }
+
+        // End RecipeSearch Tests
 }
