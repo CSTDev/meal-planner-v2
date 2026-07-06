@@ -35,7 +35,7 @@ export default function Sidebar() {
     return (
         <>
             {/* ── Mobile layout (hidden at md and above) ── */}
-            <div className="md:hidden">
+            <div data-testid="sidebar-mobile-section" className="md:hidden app-sidebar">
                 {/* Backdrop – renders only when expanded */}
                 {isExpanded && (
                     <div
@@ -144,14 +144,14 @@ export default function Sidebar() {
                 so unauthenticated pages (login/signup) get no left offset. */}
             <div
                 data-testid="sidebar-mobile-spacer"
-                className="md:hidden w-14 flex-shrink-0"
+                className="md:hidden w-14 flex-shrink-0 app-sidebar"
                 aria-hidden="true"
             />
 
             {/* ── Desktop / tablet layout (md and above) – unchanged ── */}
             <div
                 data-testid="sidebar-desktop"
-                className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200"
+                className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 app-sidebar"
             >
                 <div className="flex items-center h-16 px-6 border-b border-gray-200">
                     <h1 className="text-xl font-bold text-gray-900">

@@ -26,11 +26,24 @@ body {
 }
 
 @media print {
+  /* Sidebar never belongs on a printed page */
+  .app-sidebar {
+    display: none !important;
+  }
+
   /* Only suppress main content when the shopping list panel is open;
      browser Ctrl+P with panel closed falls back to printing the full view. */
+  body.shopping-list-open .meal-plan-page-header,
   body.shopping-list-open .meal-plan-main-header,
   body.shopping-list-open .recipe-grid {
     display: none !important;
+  }
+
+  /* Unclip the layout so the full shopping list can expand beyond the viewport */
+  body.shopping-list-open .app-shell,
+  body.shopping-list-open .app-main {
+    overflow: visible !important;
+    height: auto !important;
   }
 
   .shopping-list-overlay {
