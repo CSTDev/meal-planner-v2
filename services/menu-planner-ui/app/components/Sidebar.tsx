@@ -35,7 +35,7 @@ export default function Sidebar() {
     return (
         <>
             {/* ── Mobile layout (hidden at md and above) ── */}
-            <div className="md:hidden app-sidebar">
+            <div data-testid="sidebar-mobile-section" className="md:hidden app-sidebar">
                 {/* Backdrop – renders only when expanded */}
                 {isExpanded && (
                     <div

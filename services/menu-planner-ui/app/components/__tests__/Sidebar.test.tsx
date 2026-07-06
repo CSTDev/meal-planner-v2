@@ -53,22 +53,25 @@ describe('Sidebar – mobile rail spacer', () => {
 });
 
 describe('Sidebar – print class', () => {
-    it('applies app-sidebar class to the mobile section, spacer, and desktop sidebar', () => {
+    it('applies app-sidebar class to exactly the mobile section, spacer, and desktop sidebar', () => {
         const { container } = renderSidebar();
         const appSidebarElements = container.querySelectorAll('.app-sidebar');
-        expect(appSidebarElements.length).toBeGreaterThanOrEqual(3);
+        expect(appSidebarElements.length).toBe(3);
+    });
+
+    it('mobile section has app-sidebar class', () => {
+        renderSidebar();
+        expect(screen.getByTestId('sidebar-mobile-section')).toHaveClass('app-sidebar');
     });
 
     it('desktop sidebar has app-sidebar class', () => {
         renderSidebar();
-        const desktop = screen.getByTestId('sidebar-desktop');
-        expect(desktop).toHaveClass('app-sidebar');
+        expect(screen.getByTestId('sidebar-desktop')).toHaveClass('app-sidebar');
     });
 
     it('mobile spacer has app-sidebar class', () => {
         renderSidebar();
-        const spacer = screen.getByTestId('sidebar-mobile-spacer');
-        expect(spacer).toHaveClass('app-sidebar');
+        expect(screen.getByTestId('sidebar-mobile-spacer')).toHaveClass('app-sidebar');
     });
 });
 
