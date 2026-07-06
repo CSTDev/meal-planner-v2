@@ -20,9 +20,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
-          <div className="flex h-screen bg-gray-50">
+          <div className="flex h-screen bg-gray-50 app-shell">
             <Sidebar />
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto app-main">
               {children}
             </main>
           </div>

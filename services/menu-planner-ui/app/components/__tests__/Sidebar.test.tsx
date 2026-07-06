@@ -52,6 +52,26 @@ describe('Sidebar – mobile rail spacer', () => {
     });
 });
 
+describe('Sidebar – print class', () => {
+    it('applies app-sidebar class to the mobile section, spacer, and desktop sidebar', () => {
+        const { container } = renderSidebar();
+        const appSidebarElements = container.querySelectorAll('.app-sidebar');
+        expect(appSidebarElements.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('desktop sidebar has app-sidebar class', () => {
+        renderSidebar();
+        const desktop = screen.getByTestId('sidebar-desktop');
+        expect(desktop).toHaveClass('app-sidebar');
+    });
+
+    it('mobile spacer has app-sidebar class', () => {
+        renderSidebar();
+        const spacer = screen.getByTestId('sidebar-mobile-spacer');
+        expect(spacer).toHaveClass('app-sidebar');
+    });
+});
+
 describe('Sidebar – mobile rail (collapsed state)', () => {
     it('renders a chevron toggle button', () => {
         renderSidebar();
