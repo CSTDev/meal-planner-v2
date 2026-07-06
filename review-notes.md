@@ -26,3 +26,33 @@ SUMMARY: The feature meets all five spec requirements and is well-tested; ship a
   "summary": "Ship after addressing the unconditional @media print content-hide regression that produces a blank page when a user prints via Ctrl+P while the shopping list panel is closed."
 }
 ---
+
+## Review cycle 2 — 2026-07-06
+
+STATUS: APPROVED
+
+CRITICAL:
+- none
+
+WARNINGS:
+- **No test for `app-shell`/`app-main` classes in `layout.tsx`:** The two class additions in `layout.tsx` (`app-shell` on the outer flex div, `app-main` on `<main>`) are the key hooks for the list-truncation fix, but no test verifies they exist. Layout-level testing in Next.js App Router is non-trivial, but at minimum an integration smoke test or a comment referencing the print CSS dependency would make the coupling explicit. If a future refactor removes those classes, the truncation bug silently returns.
+- **Fragile count assertion for the mobile section `app-sidebar`:** The first print-class test uses `expect(appSidebarElements.length).toBeGreaterThanOrEqual(3)`. The mobile section wrapper (`<div className="md:hidden app-sidebar">`) has no `data-testid`, so it cannot be targeted directly; the count check is the only coverage it gets. `toBeGreaterThanOrEqual(3)` would pass even if four or five elements unexpectedly acquired the class. The two subsequent targeted tests cover `sidebar-desktop` and `sidebar-mobile-spacer` precisely, but the mobile section wrapper is only covered by this loose count.
+
+SUGGESTIONS:
+- Add `data-testid="sidebar-mobile-section"` to the outer `<div className="md:hidden app-sidebar">` in `Sidebar.tsx`. This would let the third test in the print-class describe block query it directly, and the first test could then use `toBe(3)` for an exact count.
+- The `overflow: visible !important` rule on `body.shopping-list-open .app-shell` is technically redundant — the outer shell div has no explicit `overflow` set, so its computed value is already `visible`. The load-bearing fix is the `overflow: visible !important` on `app-main` (which carries `overflow-y-auto`). The shell rule is harmless but could be removed to reduce noise in the CSS.
+- No automated test can exercise print CSS in Jest/JSDOM. A brief comment above the `@media print` block (or in `layout.tsx`) cross-referencing the classes would help future maintainers understand why `app-shell`, `app-main`, and `app-sidebar` exist and that removing them will silently break print.
+
+SUMMARY: Looks good — all three reported bugs (sidebar leak, page-header leak, list truncation) are correctly addressed with targeted CSS hooks and matching tests; add a `data-testid` to the mobile section wrapper to eliminate the fragile count assertion and make test intent unambiguous.
+
+---json
+{
+  "status": "APPROVED",
+  "critical": [],
+  "warnings": [
+    "No test verifies that app-shell and app-main classes exist on the layout.tsx elements; removing them in a future refactor would silently reintroduce the list-truncation bug.",
+    "The first Sidebar print-class test uses toBeGreaterThanOrEqual(3) because the mobile section wrapper has no data-testid, making it a loose assertion that cannot directly target the element it intends to cover."
+  ],
+  "summary": "Looks good."
+}
+---
