@@ -116,3 +116,11 @@ class TestComputePrepAndCookTime:
 
         assert prep_time is None
         assert cook_time == 20
+
+    def test_fallback_does_not_fire_when_prep_time_present(self):
+        scraped_data = {'prep_time': 15, 'total_time': 45}
+
+        prep_time, cook_time = compute_prep_and_cook_time(scraped_data)
+
+        assert prep_time == 15
+        assert cook_time is None
