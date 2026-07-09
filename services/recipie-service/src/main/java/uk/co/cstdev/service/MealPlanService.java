@@ -35,7 +35,8 @@ public class MealPlanService {
      * recipes (latest-interaction-wins).
      */
     public List<MealPlanSummaryResponse> getRecentMealPlans(UUID userId) {
-        List<MealPlan> plans = MealPlan.list("userId = ?1 ORDER BY createdAt DESC", userId);
+        // id is a deterministic tie-break for plans sharing the same createdAt
+        List<MealPlan> plans = MealPlan.list("userId = ?1 ORDER BY createdAt DESC, id DESC", userId);
 
         List<MealPlanSummaryResponse> summaries = new ArrayList<>();
         for (MealPlan plan : plans) {

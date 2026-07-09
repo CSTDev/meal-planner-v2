@@ -917,6 +917,46 @@ public class MealPlanResourceTest {
                 assertEquals(0, results.size());
         }
 
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testListMealPlansWithIdenticalCreatedAtHaveDeterministicOrder() {
+                // Three plans created at exactly the same instant — createdAt alone
+                // cannot order them, so the id tie-break must.
+                java.util.Date sameInstant = new java.util.Date();
+                List<MealPlan> plans = new ArrayList<>();
+                for (int i = 0; i < 3; i++) {
+                        MealPlan plan = createMealPlanForUser(USER_ID, sameInstant);
+                        feedbackService.processFeedback(USER_ID, recipes.getFirst().id, plan.id,
+                                        FeedbackAction.ACCEPTED);
+                        plans.add(plan);
+                }
+
+                // Postgres orders uuids byte-wise, which matches lexicographic order
+                // of their canonical string form.
+                List<String> expectedIds = plans.stream()
+                                .map(plan -> plan.id.toString())
+                                .sorted(java.util.Comparator.reverseOrder())
+                                .toList();
+
+                List<MealPlanSummaryResponse> results = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<MealPlanSummaryResponse>>() {
+                                });
+
+                assertEquals(expectedIds,
+                                results.stream().map(MealPlanSummaryResponse::id).toList(),
+                                "Plans with identical createdAt should be ordered by id descending");
+        }
+
         // End List Meal Plans Tests
 
         // Accepted Recipes Tests
