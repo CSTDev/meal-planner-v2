@@ -37,7 +37,8 @@ class RecipeResourceTest {
     @Test
     @TestSecurity(user = "testuser", roles = "authenticated")
     @JwtSecurity(claims = {
-            @Claim(key = "sub", value = USER_ID)
+            @Claim(key = "sub", value = USER_ID),
+            @Claim(key = "email", value = "me@test.com")
     })
     void testGetRecipesReturnsOnlyUsersRecipes() {
         createRecipe(Recipe.Builder.recipe()
@@ -60,7 +61,8 @@ class RecipeResourceTest {
     @Test
     @TestSecurity(user = "testuser", roles = "authenticated")
     @JwtSecurity(claims = {
-            @Claim(key = "sub", value = USER_ID)
+            @Claim(key = "sub", value = USER_ID),
+            @Claim(key = "email", value = "me@test.com")
     })
     void testGetRecipesDoesNotReturnOtherUsersRecipes() {
         createRecipe(Recipe.Builder.recipe()
@@ -83,7 +85,8 @@ class RecipeResourceTest {
     @Test
     @TestSecurity(user = "testuser", roles = "authenticated")
     @JwtSecurity(claims = {
-            @Claim(key = "sub", value = USER_ID)
+            @Claim(key = "sub", value = USER_ID),
+            @Claim(key = "email", value = "me@test.com")
     })
     void testGetRecipesReturnsMultipleUserRecipes() {
         createRecipe(Recipe.Builder.recipe().title("Pancakes").servings(4).scrapedByUserId(UUID.fromString(USER_ID)));

@@ -38,7 +38,8 @@ public class ScrapeResourceTest {
     @Test
     @TestSecurity(user = "testuser", roles = "authenticated")
     @JwtSecurity(claims = {
-            @Claim(key = "sub", value = USER_ID)
+            @Claim(key = "sub", value = USER_ID),
+            @Claim(key = "email", value = "me@test.com")
     })
     public void testScrapeRequestPublishesMessageWithAuthenticatedUserId() {
         String url = "http://example.com/recipe";
