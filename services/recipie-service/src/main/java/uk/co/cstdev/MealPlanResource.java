@@ -1,9 +1,11 @@
 package uk.co.cstdev;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.logging.Logger;
@@ -224,15 +226,35 @@ public class MealPlanResource {
 
                 // The shared query has no inherent order — sort most recently
                 // accepted first for the history detail view.
-                List<RecipeDTO> dtos = feedbackRepository
+                List<UserRecipeInteraction> interactions = feedbackRepository
                                 .findAcceptedInteractions(mealPlan.id, UUID.fromString(userId))
                                 .stream()
                                 .sorted(Comparator.comparing(
                                                 (UserRecipeInteraction i) -> i.interactionAt).reversed())
-                                .map(interaction -> (Recipe) Recipe.findById(interaction.recipeId))
-                                .filter(Objects::nonNull)
-                                .map(RecipeDTO::from)
                                 .toList();
+
+                // Batch the recipe lookup rather than one findById per interaction
+                List<UUID> recipeIds = interactions.stream()
+                                .map(interaction -> interaction.recipeId)
+                                .toList();
+                Map<UUID, Recipe> recipesById = recipeIds.isEmpty()
+                                ? Map.of()
+                                : Recipe.<Recipe>list("id in ?1", recipeIds)
+                                                .stream()
+                                                .collect(Collectors.toMap(recipe -> recipe.id,
+                                                                recipe -> recipe));
+
+                List<RecipeDTO> dtos = new ArrayList<>();
+                for (UserRecipeInteraction interaction : interactions) {
+                        Recipe recipe = recipesById.get(interaction.recipeId);
+                        if (recipe == null) {
+                                // Should be impossible while the recipe_id FK holds
+                                LOGGER.warnf("Accepted interaction references missing recipe %s in meal plan %s",
+                                                interaction.recipeId, mealPlan.id);
+                                continue;
+                        }
+                        dtos.add(RecipeDTO.from(recipe));
+                }
                 return Response.ok(dtos).build();
         }
 
