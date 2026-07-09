@@ -208,6 +208,22 @@ def parse_ingredient(ingredient_str: str) -> Optional[dict]:
     return {'quantity': quantity * trailing_multiplier, 'unit': unit, 'name': text or ingredient_str}
 
 
+def compute_prep_and_cook_time(scraped_data: dict):
+    """Derive (prep_time, cook_time) from a scraped_data dict.
+
+    Most sites expose separate prep_time/cook_time. Some sites (e.g. Gousto)
+    only expose a total_time. When both prep_time and cook_time are missing
+    but a total_time is available, fall back to treating the total as the
+    cook_time (leaving prep_time unknown).
+    """
+    prep_time = scraped_data.get('prep_time')
+    cook_time = scraped_data.get('cook_time')
+    total_time = scraped_data.get('total_time')
+    if prep_time is None and cook_time is None and total_time is not None:
+        cook_time = total_time
+    return prep_time, cook_time
+
+
 def parse_servings(yields_str) -> int:
     """Extract the serving count from a yields string.
 
@@ -310,12 +326,12 @@ class RecipeScrapeCompleted:
                 'description': self.recipe_data.description,
                 'ingredients': self.recipe_data.ingredients,
                 'instructions': self.recipe_data.instructions,
-                'prepTime': self.recipe_data.prep_time,
-                'cookTime': self.recipe_data.cook_time,
+                'prepTimeMinutes': self.recipe_data.prep_time,
+                'cookTimeMinutes': self.recipe_data.cook_time,
                 'totalTime': self.recipe_data.total_time,
                 'servings': self.recipe_data.servings,
                 'imageUrl': self.recipe_data.image_url,
-                'canonicalUrl': self.recipe_data.canonical_url,
+                'url': self.recipe_data.canonical_url,
                 'host': self.recipe_data.host,
                 'ratings': self.recipe_data.ratings,
                 'language': self.recipe_data.language
@@ -441,13 +457,14 @@ class RecipeScraperService:
                 scraped_data = self.scrape_recipe(url)
 
                 # Build RecipeData object
+                prep_time, cook_time = compute_prep_and_cook_time(scraped_data)
                 recipe_data = RecipeData(
                     title=scraped_data.get('title', 'Unknown Recipe'),
                     description=scraped_data.get('description'),
                     ingredients=[p for p in (parse_ingredient(i) for i in scraped_data.get('ingredients', [])) if p is not None],
                     instructions=scraped_data.get('instructions_list', []),
-                    prep_time=None,
-                    cook_time=None,
+                    prep_time=prep_time,
+                    cook_time=cook_time,
                     total_time=scraped_data.get('total_time'),
                     servings=parse_servings(scraped_data.get('yields')),
                     image_url=scraped_data.get('image'),
