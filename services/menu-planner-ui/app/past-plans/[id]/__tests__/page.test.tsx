@@ -43,6 +43,7 @@ const mockShoppingList = {
 describe('PastPlanDetailPage', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        document.body.classList.remove('shopping-list-open');
         (getAcceptedRecipes as jest.Mock).mockResolvedValue(mockRecipes);
         (getShoppingList as jest.Mock).mockResolvedValue(mockShoppingList);
     });
@@ -86,6 +87,55 @@ describe('PastPlanDetailPage', () => {
 
         await user.click(screen.getByRole('button', { name: /close shopping list/i }));
         expect(screen.queryByText('butter')).not.toBeInTheDocument();
+    });
+
+    it('sets shopping-list-open on the body while the overlay is open (print mode)', async () => {
+        const user = userEvent.setup();
+        render(<PastPlanDetailPage />);
+        await screen.findByText('French Toast');
+
+        expect(document.body.classList.contains('shopping-list-open')).toBe(false);
+
+        await user.click(screen.getByRole('button', { name: /generate shopping list/i }));
+        await screen.findByText('butter');
+        expect(document.body.classList.contains('shopping-list-open')).toBe(true);
+
+        await user.click(screen.getByRole('button', { name: /close shopping list/i }));
+        expect(document.body.classList.contains('shopping-list-open')).toBe(false);
+    });
+
+    it('has a print button in the overlay that calls window.print', async () => {
+        window.print = jest.fn();
+        const user = userEvent.setup();
+        render(<PastPlanDetailPage />);
+        await screen.findByText('French Toast');
+
+        await user.click(screen.getByRole('button', { name: /generate shopping list/i }));
+        await screen.findByText('butter');
+
+        await user.click(screen.getByRole('button', { name: /print shopping list/i }));
+        expect(window.print).toHaveBeenCalledTimes(1);
+    });
+
+    it('wraps the page content in a print-hideable block that excludes the overlay', async () => {
+        const user = userEvent.setup();
+        const { container } = render(<PastPlanDetailPage />);
+        await screen.findByText('French Toast');
+
+        const printHide = container.querySelector('.shopping-list-print-hide');
+        expect(printHide).not.toBeNull();
+        // The page's own header and recipe list are hidden when printing...
+        expect(printHide).toContainElement(
+            screen.getByRole('heading', { name: /past plan/i })
+        );
+        expect(printHide).toContainElement(screen.getByText('French Toast'));
+
+        // ...but the shopping list overlay is not inside the hidden block.
+        await user.click(screen.getByRole('button', { name: /generate shopping list/i }));
+        await screen.findByText('butter');
+        const overlay = container.querySelector('.shopping-list-overlay');
+        expect(overlay).not.toBeNull();
+        expect(printHide).not.toContainElement(overlay as HTMLElement);
     });
 
     it('does not render any accept or reject controls', async () => {
