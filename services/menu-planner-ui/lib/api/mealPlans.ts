@@ -18,6 +18,13 @@ export interface RecordFeedbackRequest {
     action: 'accepted' | 'rejected';
 }
 
+export interface PastMealPlan {
+    id: string;
+    createdAt: string;
+    recipeSource: string;
+    acceptedRecipeCount: number;
+}
+
 /**
  * Create a new meal plan
  */
@@ -38,6 +45,25 @@ export async function createMealPlan(
 
     if (!response.ok) {
         throw new Error('Failed to create meal plan');
+    }
+
+    return response.json();
+}
+
+/**
+ * Get the user's most recent meal plans (max 10, newest first,
+ * plans with no accepted recipes excluded)
+ */
+export async function getPastMealPlans(): Promise<PastMealPlan[]> {
+    const response = await fetch(`/api/meal-plans`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to get past meal plans');
     }
 
     return response.json();
