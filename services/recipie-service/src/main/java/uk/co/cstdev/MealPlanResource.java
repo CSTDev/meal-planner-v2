@@ -1,6 +1,8 @@
 package uk.co.cstdev;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.eclipse.microprofile.jwt.JsonWebToken;
@@ -21,10 +23,12 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import uk.co.cstdev.data.FeedbackRepository;
 import uk.co.cstdev.data.MealPlan;
 import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.RecipeFeedback;
+import uk.co.cstdev.data.UserRecipeInteraction;
 import uk.co.cstdev.data.mealplan.MealPlanRequest;
 import uk.co.cstdev.data.mealplan.MealPlanResponse;
 import uk.co.cstdev.data.mealplan.MealPlanSummaryResponse;
@@ -54,6 +58,9 @@ public class MealPlanResource {
 
         @Inject
         ShoppingListService shoppingListService;
+
+        @Inject
+        FeedbackRepository feedbackRepository;
 
         @Inject
         JsonWebToken jwt;
@@ -188,6 +195,45 @@ public class MealPlanResource {
                 ShoppingListResponse response = shoppingListService.buildShoppingList(mealPlan.id,
                                 UUID.fromString(userId));
                 return Response.ok(response).build();
+        }
+
+        @GET
+        @Path("/{id}/accepted-recipes")
+        @Operation(summary = "Get accepted recipes for a meal plan", description = "Returns the recipes currently accepted into the meal plan, most recently accepted first")
+        @APIResponse(responseCode = "200", description = "List of accepted recipes")
+        @APIResponse(responseCode = "401", description = "Unauthorized")
+        @APIResponse(responseCode = "403", description = "Meal plan does not belong to the authenticated user")
+        @APIResponse(responseCode = "404", description = "Meal plan not found")
+        public Response getAcceptedRecipes(@PathParam("id") String id) {
+                String userId = jwt.getSubject();
+
+                MealPlan mealPlan;
+                try {
+                        mealPlan = MealPlan.findById(UUID.fromString(id));
+                } catch (IllegalArgumentException e) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan == null) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan.userId == null || !mealPlan.userId.toString().equals(userId)) {
+                        return Response.status(Response.Status.FORBIDDEN).build();
+                }
+
+                // The shared query has no inherent order — sort most recently
+                // accepted first for the history detail view.
+                List<RecipeDTO> dtos = feedbackRepository
+                                .findAcceptedInteractions(mealPlan.id, UUID.fromString(userId))
+                                .stream()
+                                .sorted(Comparator.comparing(
+                                                (UserRecipeInteraction i) -> i.interactionAt).reversed())
+                                .map(interaction -> (Recipe) Recipe.findById(interaction.recipeId))
+                                .filter(Objects::nonNull)
+                                .map(RecipeDTO::from)
+                                .toList();
+                return Response.ok(dtos).build();
         }
 
 }

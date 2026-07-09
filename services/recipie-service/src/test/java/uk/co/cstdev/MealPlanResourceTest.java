@@ -918,4 +918,100 @@ public class MealPlanResourceTest {
         }
 
         // End List Meal Plans Tests
+
+        // Accepted Recipes Tests
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testAcceptedRecipesUnknownPlanReturns404() {
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/accepted-recipes".formatted(UUID.randomUUID()))
+                                .then()
+                                .statusCode(404);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testAcceptedRecipesPlanOwnedByOtherUserReturns403() {
+                User secondUser = createSecondUser();
+                MealPlan otherPlan = createMealPlanForUser(secondUser.id);
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/accepted-recipes".formatted(otherPlan.id))
+                                .then()
+                                .statusCode(403);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testAcceptedRecipesOrderedMostRecentlyAcceptedFirst() {
+                MealPlan plan = createMealPlanForUser(USER_ID);
+
+                // Accept in a known order: first, then second, then third.
+                feedbackService.processFeedback(USER_ID, recipes.get(0).id, plan.id, FeedbackAction.ACCEPTED);
+                feedbackService.processFeedback(USER_ID, recipes.get(1).id, plan.id, FeedbackAction.ACCEPTED);
+                feedbackService.processFeedback(USER_ID, recipes.get(2).id, plan.id, FeedbackAction.ACCEPTED);
+
+                List<RecipeDTO> results = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/accepted-recipes".formatted(plan.id))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+
+                assertEquals(3, results.size());
+                assertEquals(recipes.get(2).id, results.get(0).id,
+                                "Most recently accepted recipe should come first");
+                assertEquals(recipes.get(1).id, results.get(1).id);
+                assertEquals(recipes.get(0).id, results.get(2).id);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testAcceptedRecipesExcludesAcceptThenReject() {
+                MealPlan plan = createMealPlanForUser(USER_ID);
+
+                feedbackService.processFeedback(USER_ID, recipes.get(0).id, plan.id, FeedbackAction.ACCEPTED);
+                // Accepted then later rejected — must not be listed.
+                feedbackService.processFeedback(USER_ID, recipes.get(1).id, plan.id, FeedbackAction.ACCEPTED);
+                feedbackService.processFeedback(USER_ID, recipes.get(1).id, plan.id, FeedbackAction.REJECTED);
+
+                List<RecipeDTO> results = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/accepted-recipes".formatted(plan.id))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+
+                assertEquals(1, results.size());
+                assertEquals(recipes.get(0).id, results.get(0).id);
+        }
+
+        // End Accepted Recipes Tests
 }
