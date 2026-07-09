@@ -26,6 +26,19 @@ export interface PastMealPlan {
 }
 
 /**
+ * A recipe as returned by the backend's accepted-recipes endpoint
+ * (the backend RecipeDTO shape, which differs from the scraper-oriented
+ * Recipe type in types/recipe.ts)
+ */
+export interface AcceptedRecipe {
+    id: string;
+    title: string;
+    description?: string;
+    url?: string;
+    imageUrl?: string;
+}
+
+/**
  * Create a new meal plan
  */
 export async function createMealPlan(
@@ -118,6 +131,30 @@ export async function recordFeedback(
     if (!response.ok) {
         throw new Error('Failed to record feedback');
     }
+}
+
+/**
+ * Get the recipes currently accepted into a meal plan,
+ * most recently accepted first
+ */
+export async function getAcceptedRecipes(
+    mealPlanId: string
+): Promise<AcceptedRecipe[]> {
+    const response = await fetch(
+        `/api/meal-plans/${mealPlanId}/accepted-recipes`,
+        {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error('Failed to get accepted recipes');
+    }
+
+    return response.json();
 }
 
 /**
