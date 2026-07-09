@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 const navigation = [
     { name: 'Meal Planner', href: '/meal-plan', icon: '🏠' },
+    { name: 'Past Plans', href: '/past-plans', icon: '🗓️' },
     { name: 'Add Recipe', href: '/scrape', icon: '➕' },
     { name: 'My Recipes', href: '/recipes', icon: '📖' },
     { name: 'Settings', href: '/settings', icon: '⚙️' },

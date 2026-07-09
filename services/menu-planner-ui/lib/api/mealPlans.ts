@@ -18,6 +18,26 @@ export interface RecordFeedbackRequest {
     action: 'accepted' | 'rejected';
 }
 
+export interface PastMealPlan {
+    id: string;
+    createdAt: string;
+    recipeSource: string;
+    acceptedRecipeCount: number;
+}
+
+/**
+ * A recipe as returned by the backend's accepted-recipes endpoint
+ * (the backend RecipeDTO shape, which differs from the scraper-oriented
+ * Recipe type in types/recipe.ts)
+ */
+export interface AcceptedRecipe {
+    id: string;
+    title: string;
+    description?: string;
+    url?: string;
+    imageUrl?: string;
+}
+
 /**
  * Create a new meal plan
  */
@@ -38,6 +58,25 @@ export async function createMealPlan(
 
     if (!response.ok) {
         throw new Error('Failed to create meal plan');
+    }
+
+    return response.json();
+}
+
+/**
+ * Get the user's most recent meal plans (max 10, newest first,
+ * plans with no accepted recipes excluded)
+ */
+export async function getPastMealPlans(): Promise<PastMealPlan[]> {
+    const response = await fetch(`/api/meal-plans`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to get past meal plans');
     }
 
     return response.json();
@@ -92,6 +131,30 @@ export async function recordFeedback(
     if (!response.ok) {
         throw new Error('Failed to record feedback');
     }
+}
+
+/**
+ * Get the recipes currently accepted into a meal plan,
+ * most recently accepted first
+ */
+export async function getAcceptedRecipes(
+    mealPlanId: string
+): Promise<AcceptedRecipe[]> {
+    const response = await fetch(
+        `/api/meal-plans/${mealPlanId}/accepted-recipes`,
+        {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error('Failed to get accepted recipes');
+    }
+
+    return response.json();
 }
 
 /**

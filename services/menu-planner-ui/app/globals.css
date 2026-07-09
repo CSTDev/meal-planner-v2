@@ -32,7 +32,10 @@ body {
   }
 
   /* Only suppress main content when the shopping list panel is open;
-     browser Ctrl+P with panel closed falls back to printing the full view. */
+     browser Ctrl+P with panel closed falls back to printing the full view.
+     .shopping-list-print-hide is the generic hook for any page hosting the
+     ShoppingListOverlay component. */
+  body.shopping-list-open .shopping-list-print-hide,
   body.shopping-list-open .meal-plan-page-header,
   body.shopping-list-open .meal-plan-main-header,
   body.shopping-list-open .recipe-grid {

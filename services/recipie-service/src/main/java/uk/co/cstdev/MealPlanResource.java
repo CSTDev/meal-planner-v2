@@ -1,7 +1,11 @@
 package uk.co.cstdev;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.logging.Logger;
@@ -21,12 +25,15 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import uk.co.cstdev.data.FeedbackRepository;
 import uk.co.cstdev.data.MealPlan;
 import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.RecipeFeedback;
+import uk.co.cstdev.data.UserRecipeInteraction;
 import uk.co.cstdev.data.mealplan.MealPlanRequest;
 import uk.co.cstdev.data.mealplan.MealPlanResponse;
+import uk.co.cstdev.data.mealplan.MealPlanSummaryResponse;
 import uk.co.cstdev.data.mealplan.ShoppingListResponse;
 import uk.co.cstdev.service.FeedbackService;
 import uk.co.cstdev.service.MealPlanService;
@@ -55,6 +62,9 @@ public class MealPlanResource {
         ShoppingListService shoppingListService;
 
         @Inject
+        FeedbackRepository feedbackRepository;
+
+        @Inject
         JsonWebToken jwt;
 
         @POST
@@ -70,6 +80,16 @@ public class MealPlanResource {
                                 mealPlan.status);
                 return Response.ok(response)
                                 .build();
+        }
+
+        @GET
+        @Operation(summary = "List recent meal plans", description = "Returns up to 10 of the authenticated user's most recent meal plans, newest first, excluding plans with no accepted recipes")
+        @APIResponse(responseCode = "200", description = "List of recent meal plans")
+        @APIResponse(responseCode = "401", description = "Unauthorized")
+        public Response listMealPlans() {
+                String userId = jwt.getSubject();
+                List<MealPlanSummaryResponse> plans = mealPlanService.getRecentMealPlans(UUID.fromString(userId));
+                return Response.ok(plans).build();
         }
 
         // TODO should this be here or it a RecommendationResource?
@@ -177,6 +197,65 @@ public class MealPlanResource {
                 ShoppingListResponse response = shoppingListService.buildShoppingList(mealPlan.id,
                                 UUID.fromString(userId));
                 return Response.ok(response).build();
+        }
+
+        @GET
+        @Path("/{id}/accepted-recipes")
+        @Operation(summary = "Get accepted recipes for a meal plan", description = "Returns the recipes currently accepted into the meal plan, most recently accepted first")
+        @APIResponse(responseCode = "200", description = "List of accepted recipes")
+        @APIResponse(responseCode = "401", description = "Unauthorized")
+        @APIResponse(responseCode = "403", description = "Meal plan does not belong to the authenticated user")
+        @APIResponse(responseCode = "404", description = "Meal plan not found")
+        public Response getAcceptedRecipes(@PathParam("id") String id) {
+                String userId = jwt.getSubject();
+
+                MealPlan mealPlan;
+                try {
+                        mealPlan = MealPlan.findById(UUID.fromString(id));
+                } catch (IllegalArgumentException e) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan == null) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan.userId == null || !mealPlan.userId.toString().equals(userId)) {
+                        return Response.status(Response.Status.FORBIDDEN).build();
+                }
+
+                // The shared query has no inherent order — sort most recently
+                // accepted first for the history detail view.
+                List<UserRecipeInteraction> interactions = feedbackRepository
+                                .findAcceptedInteractions(mealPlan.id, UUID.fromString(userId))
+                                .stream()
+                                .sorted(Comparator.comparing(
+                                                (UserRecipeInteraction i) -> i.interactionAt).reversed())
+                                .toList();
+
+                // Batch the recipe lookup rather than one findById per interaction
+                List<UUID> recipeIds = interactions.stream()
+                                .map(interaction -> interaction.recipeId)
+                                .toList();
+                Map<UUID, Recipe> recipesById = recipeIds.isEmpty()
+                                ? Map.of()
+                                : Recipe.<Recipe>list("id in ?1", recipeIds)
+                                                .stream()
+                                                .collect(Collectors.toMap(recipe -> recipe.id,
+                                                                recipe -> recipe));
+
+                List<RecipeDTO> dtos = new ArrayList<>();
+                for (UserRecipeInteraction interaction : interactions) {
+                        Recipe recipe = recipesById.get(interaction.recipeId);
+                        if (recipe == null) {
+                                // Should be impossible while the recipe_id FK holds
+                                LOGGER.warnf("Accepted interaction references missing recipe %s in meal plan %s",
+                                                interaction.recipeId, mealPlan.id);
+                                continue;
+                        }
+                        dtos.add(RecipeDTO.from(recipe));
+                }
+                return Response.ok(dtos).build();
         }
 
 }

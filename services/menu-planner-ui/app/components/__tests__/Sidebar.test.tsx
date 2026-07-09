@@ -82,10 +82,19 @@ describe('Sidebar – mobile rail (collapsed state)', () => {
         expect(within(rail).getByRole('button', { name: /open sidebar/i })).toBeInTheDocument();
     });
 
-    it('shows 4 nav icon links in the rail', () => {
+    it('shows 5 nav icon links in the rail', () => {
         renderSidebar();
         const rail = screen.getByTestId('sidebar-mobile-rail');
-        expect(within(rail).getAllByRole('link')).toHaveLength(4);
+        expect(within(rail).getAllByRole('link')).toHaveLength(5);
+    });
+
+    it('includes a Past Plans link pointing at /past-plans', () => {
+        renderSidebar();
+        const rail = screen.getByTestId('sidebar-mobile-rail');
+        expect(within(rail).getByRole('link', { name: /past plans/i })).toHaveAttribute(
+            'href',
+            '/past-plans'
+        );
     });
 
     it('does not show nav item text labels in the collapsed rail', () => {
@@ -158,6 +167,7 @@ describe('Sidebar – expanded overlay content', () => {
         await user.click(screen.getByRole('button', { name: /open sidebar/i }));
         const overlay = screen.getByTestId('sidebar-mobile-overlay');
         expect(within(overlay).getByText('Meal Planner')).toBeInTheDocument();
+        expect(within(overlay).getByText('Past Plans')).toBeInTheDocument();
         expect(within(overlay).getByText('My Recipes')).toBeInTheDocument();
     });
 
