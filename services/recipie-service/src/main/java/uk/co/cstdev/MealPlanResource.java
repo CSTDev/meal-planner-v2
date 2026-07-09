@@ -27,6 +27,7 @@ import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.RecipeFeedback;
 import uk.co.cstdev.data.mealplan.MealPlanRequest;
 import uk.co.cstdev.data.mealplan.MealPlanResponse;
+import uk.co.cstdev.data.mealplan.MealPlanSummaryResponse;
 import uk.co.cstdev.data.mealplan.ShoppingListResponse;
 import uk.co.cstdev.service.FeedbackService;
 import uk.co.cstdev.service.MealPlanService;
@@ -70,6 +71,16 @@ public class MealPlanResource {
                                 mealPlan.status);
                 return Response.ok(response)
                                 .build();
+        }
+
+        @GET
+        @Operation(summary = "List recent meal plans", description = "Returns up to 10 of the authenticated user's most recent meal plans, newest first, excluding plans with no accepted recipes")
+        @APIResponse(responseCode = "200", description = "List of recent meal plans")
+        @APIResponse(responseCode = "401", description = "Unauthorized")
+        public Response listMealPlans() {
+                String userId = jwt.getSubject();
+                List<MealPlanSummaryResponse> plans = mealPlanService.getRecentMealPlans(UUID.fromString(userId));
+                return Response.ok(plans).build();
         }
 
         // TODO should this be here or it a RecommendationResource?
