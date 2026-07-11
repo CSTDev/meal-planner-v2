@@ -72,9 +72,11 @@ export default function RecipeCard({
                     <span>
                         {recipe.totalTime
                             ? `${recipe.totalTime} min`
-                            : recipe.prepTime && recipe.cookTime
-                                ? `${recipe.prepTime + recipe.cookTime} min`
-                                : 'Time not specified'}
+                            : recipe.prepTime && recipe.cookTimeMinutes
+                                ? `${recipe.prepTime + recipe.cookTimeMinutes} min`
+                                : recipe.cookTimeMinutes
+                                    ? `${recipe.cookTimeMinutes} min`
+                                    : 'Time not specified'}
                     </span>
                 </div>
 

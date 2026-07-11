@@ -25,7 +25,7 @@ function toRecipe(r: RecipeApiResponse): Recipe {
         description: r.description,
         imageUrl: r.imageUrl,
         prepTime: r.prepTimeMinutes,
-        cookTime: r.cookTimeMinutes,
+        cookTimeMinutes: r.cookTimeMinutes,
         servings: r.servings,
         ingredients: (r.ingredients ?? []).map(i => ({
             name: i.name,
