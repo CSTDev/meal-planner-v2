@@ -1,6 +1,7 @@
 package uk.co.cstdev.service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +54,8 @@ public class ShoppingListService {
         for (Map.Entry<String, List<IngredientContribution>> entry : contributionsByName.entrySet()) {
             ingredients.add(buildIngredientLine(entry.getKey(), entry.getValue()));
         }
+        ingredients.sort(Comparator.comparing(
+                ShoppingListIngredient::name, String.CASE_INSENSITIVE_ORDER));
 
         return new ShoppingListResponse(ingredients);
     }

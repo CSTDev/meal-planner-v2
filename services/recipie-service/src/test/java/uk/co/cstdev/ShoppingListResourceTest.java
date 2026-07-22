@@ -331,6 +331,28 @@ public class ShoppingListResourceTest {
             @Claim(key = "sub", value = USER_ID_STRING),
             @Claim(key = "email", value = "shopping-list-test@test.com")
     })
+    public void testIngredientsAreSortedAlphabeticallyByName() {
+        Recipe recipeA = persistRecipe("Recipe A", new IngredientSpec("onion", 2f, ""));
+        Recipe recipeB = persistRecipe("Recipe B", new IngredientSpec("garlic", 4f, "clove"));
+        Recipe recipeC = persistRecipe("Recipe C", new IngredientSpec("chicken breast", 340f, "g"));
+        accept(recipeA);
+        accept(recipeB);
+        accept(recipeC);
+
+        Map<String, Object> response = getShoppingList(mealPlan.id.toString());
+        List<Map<String, Object>> ingredients = ingredientsOf(response);
+
+        List<String> names = ingredients.stream().map(i -> (String) i.get("name")).toList();
+        assertEquals(List.of("chicken breast", "garlic", "onion"), names,
+                "Shopping list ingredients should be sorted alphabetically by name");
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
     public void testEmptyMealPlanReturnsEmptyIngredientsList() {
         Map<String, Object> response = getShoppingList(mealPlan.id.toString());
         List<Map<String, Object>> ingredients = ingredientsOf(response);
