@@ -21,6 +21,25 @@ from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import KafkaError
 from prometheus_client import Counter, Histogram, start_http_server
 
+def connect_with_retry(factory, description: str):
+    """
+    Call factory() until it succeeds, retrying on KafkaError with capped
+    exponential backoff. Used to wait out Kafka not being reachable yet
+    (e.g. still starting up) instead of crashing the process.
+    """
+    delay = 2
+    while True:
+        try:
+            return factory()
+        except KafkaError as e:
+            logger.warning(
+                f"Kafka not ready yet ({description}): {e}. "
+                f"Retrying in {delay}s..."
+            )
+            time.sleep(delay)
+            delay = min(delay * 2, 30)
+
+
 class RateLimiter:
     """
     Per-host rate limiter that enforces a minimum delay between requests
@@ -383,22 +402,29 @@ class RecipeScraperService:
         self.return_topic_name = return_topic_name
         self.rate_limiter = RateLimiter(min_delay_seconds=rate_limit_delay)
 
-        # Initialize Kafka consumer
-        self.consumer = KafkaConsumer(
-            topic_name,
-            bootstrap_servers=bootstrap_servers,
-            group_id=consumer_group,
-            value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-            auto_offset_reset='latest',
-            enable_auto_commit=True
+        # Initialize Kafka consumer, retrying until the broker is reachable
+        # (e.g. Kafka is still starting up when this pod starts)
+        self.consumer = connect_with_retry(
+            lambda: KafkaConsumer(
+                topic_name,
+                bootstrap_servers=bootstrap_servers,
+                group_id=consumer_group,
+                value_deserializer=lambda m: json.loads(m.decode('utf-8')),
+                auto_offset_reset='latest',
+                enable_auto_commit=True
+            ),
+            "consumer"
         )
 
         # Initialize Kafka producer
-        self.producer = KafkaProducer(
-            bootstrap_servers=bootstrap_servers,
-            value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-            acks='all',
-            retries=3
+        self.producer = connect_with_retry(
+            lambda: KafkaProducer(
+                bootstrap_servers=bootstrap_servers,
+                value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+                acks='all',
+                retries=3
+            ),
+            "producer"
         )
 
         logger.info(
