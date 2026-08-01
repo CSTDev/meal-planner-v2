@@ -5,7 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.persistence.PersistenceException;
 import jakarta.transaction.Transactional;
 
 @ApplicationScoped
@@ -41,28 +43,35 @@ public class MealPlanRecipeRepository implements PanacheRepositoryBase<MealPlanR
 
     /**
      * Atomically moves the row identified by (mealPlanId, oldRecipeId) onto
-     * a new recipe, setting its status. Returns {@code false} if the row
-     * doesn't exist, or if {@code newRecipeId} is already claimed by a
-     * different row in this plan (the caller should retry with another
-     * candidate) — the unique constraint on (meal_plan_id, recipe_id) is the
-     * ultimate backstop against this ever producing a duplicate.
+     * a new recipe, setting its status. Returns {@code false} (without
+     * throwing) if the row doesn't exist, or if {@code newRecipeId} is
+     * already claimed by a different row in this plan — the unique
+     * constraint on (meal_plan_id, recipe_id) is relied on directly (rather
+     * than a pre-check) to detect this, so it's caught even under a genuine
+     * concurrent collision, not just one that was already committed. The
+     * attempt runs in its own transaction so that a constraint violation
+     * only rolls back this attempt, leaving the caller's own transaction
+     * (and any work already done in it) unaffected — mirroring
+     * {@link #claim}, which never throws on collision either.
      */
-    @Transactional
     public boolean reclaim(UUID mealPlanId, UUID oldRecipeId, UUID newRecipeId, String status) {
-        int updated = getEntityManager().createNativeQuery("""
-                UPDATE meal_plan_recipes
-                SET recipe_id = ?3, status = ?4
-                WHERE meal_plan_id = ?1 AND recipe_id = ?2
-                AND NOT EXISTS (
-                    SELECT 1 FROM meal_plan_recipes WHERE meal_plan_id = ?1 AND recipe_id = ?3
-                )
-                """)
-                .setParameter(1, mealPlanId)
-                .setParameter(2, oldRecipeId)
-                .setParameter(3, newRecipeId)
-                .setParameter(4, status)
-                .executeUpdate();
-        return updated > 0;
+        try {
+            return QuarkusTransaction.requiringNew().call(() -> {
+                int updated = getEntityManager().createNativeQuery("""
+                        UPDATE meal_plan_recipes
+                        SET recipe_id = ?3, status = ?4
+                        WHERE meal_plan_id = ?1 AND recipe_id = ?2
+                        """)
+                        .setParameter(1, mealPlanId)
+                        .setParameter(2, oldRecipeId)
+                        .setParameter(3, newRecipeId)
+                        .setParameter(4, status)
+                        .executeUpdate();
+                return updated > 0;
+            });
+        } catch (PersistenceException e) {
+            return false;
+        }
     }
 
     /**

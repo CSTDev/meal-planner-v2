@@ -7,6 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +36,7 @@ public class MealPlanRecipeRepositoryTest {
     private MealPlan mealPlan;
     private Recipe recipeA;
     private Recipe recipeB;
+    private Recipe recipeC;
 
     @BeforeEach
     public void setup() {
@@ -46,6 +52,8 @@ public class MealPlanRecipeRepositoryTest {
             recipeA.persist();
             recipeB = Recipe.Builder.recipe().title("Recipe B").servings(2).build();
             recipeB.persist();
+            recipeC = Recipe.Builder.recipe().title("Recipe C").servings(2).build();
+            recipeC.persist();
             mealPlan = MealPlan.Builder.builder()
                     .userId(user.id)
                     .recipeSource("all")
@@ -135,6 +143,44 @@ public class MealPlanRecipeRepositoryTest {
         // Both original rows remain untouched.
         List<MealPlanRecipe> rows = mealPlanRecipeRepository.listByMealPlan(mealPlan.id);
         assertEquals(2, rows.size());
+    }
+
+    @Test
+    public void reclaimReturnsFalseInsteadOfThrowingUnderAGenuineConcurrentCollisionOnTheSameTargetRecipe()
+            throws Exception {
+        // Two distinct rows, each racing to become recipeC.
+        mealPlanRecipeRepository.claim(mealPlan.id, recipeA.id, "OFFERED");
+        mealPlanRecipeRepository.claim(mealPlan.id, recipeB.id, "OFFERED");
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch startLatch = new CountDownLatch(2);
+        try {
+            Future<Boolean> first = executor.submit(() -> {
+                startLatch.countDown();
+                startLatch.await();
+                return mealPlanRecipeRepository.reclaim(mealPlan.id, recipeA.id, recipeC.id, "ACCEPTED");
+            });
+            Future<Boolean> second = executor.submit(() -> {
+                startLatch.countDown();
+                startLatch.await();
+                return mealPlanRecipeRepository.reclaim(mealPlan.id, recipeB.id, recipeC.id, "ACCEPTED");
+            });
+
+            // Neither call should throw — both must resolve to a boolean,
+            // exactly one true (the winner) and one false (the loser, which
+            // the caller is expected to retry with another candidate).
+            boolean firstResult = first.get(30, TimeUnit.SECONDS);
+            boolean secondResult = second.get(30, TimeUnit.SECONDS);
+
+            assertTrue(firstResult ^ secondResult, "exactly one of the two concurrent reclaims should win");
+
+            List<MealPlanRecipe> rows = mealPlanRecipeRepository.listByMealPlan(mealPlan.id);
+            assertEquals(2, rows.size());
+            long claimedAsRecipeC = rows.stream().filter(r -> r.id.recipeId.equals(recipeC.id)).count();
+            assertEquals(1, claimedAsRecipeC, "recipeC should be claimed by exactly one row, never duplicated");
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
