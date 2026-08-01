@@ -20,16 +20,14 @@ export async function GET(
         }
 
         const params = await context.params;
-        const searchParams = request.nextUrl.searchParams;
-        const numRecipes = searchParams.get('num_recipes') || '5';
 
         const response = await fetch(
-            `${API_GATEWAY_URL}/api/meal-plans/${params.id}/recommendations?num_recipes=${numRecipes}`,
+            `${API_GATEWAY_URL}/api/meal-plans/${params.id}`,
             {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`, // ✅ Add JWT token
+                    'Authorization': `Bearer ${session.access_token}`,
                 },
             }
         );
@@ -38,7 +36,7 @@ export async function GET(
             const errorText = await response.text();
             console.error('Backend error:', errorText);
             return NextResponse.json(
-                { message: 'Failed to get recommendations' },
+                { message: 'Failed to get meal plan' },
                 { status: response.status }
             );
         }
@@ -46,9 +44,9 @@ export async function GET(
         const data = await response.json();
         return NextResponse.json(data);
     } catch (error) {
-        console.error('Error getting recommendations:', error);
+        console.error('Error getting meal plan:', error);
         return NextResponse.json(
-            { message: 'Failed to get recommendations' },
+            { message: 'Failed to get meal plan' },
             { status: 500 }
         );
     }

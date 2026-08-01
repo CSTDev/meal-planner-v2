@@ -1,7 +1,9 @@
 package uk.co.cstdev;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -28,10 +30,14 @@ import jakarta.transaction.Transactional;
 import jakarta.ws.rs.core.MediaType;
 import uk.co.cstdev.data.FeedbackAction;
 import uk.co.cstdev.data.MealPlan;
+import uk.co.cstdev.data.MealPlanRecipe;
+import uk.co.cstdev.data.MealPlanRecipeRepository;
 import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.User;
 import uk.co.cstdev.data.UserRecipeInteraction;
+import uk.co.cstdev.data.mealplan.FeedbackResponse;
+import uk.co.cstdev.data.mealplan.MealPlanFullResponse;
 import uk.co.cstdev.data.mealplan.MealPlanResponse;
 import uk.co.cstdev.data.mealplan.MealPlanSummaryResponse;
 import uk.co.cstdev.service.FeedbackService;
@@ -47,6 +53,9 @@ public class MealPlanResourceTest {
 
         @Inject
         FeedbackService feedbackService;
+
+        @Inject
+        MealPlanRecipeRepository mealPlanRecipeRepository;
 
         @Inject
         EntityManager entityManager;
@@ -66,6 +75,7 @@ public class MealPlanResourceTest {
                                 Recipe.Builder.recipe().title("French Toast").servings(2).build());
 
                 QuarkusTransaction.requiringNew().run(() -> {
+                        MealPlanRecipe.deleteAll();
                         Recipe.deleteAll();
                         UserRecipeInteraction.deleteAll();
                         MealPlan.deleteAll();
@@ -80,6 +90,8 @@ public class MealPlanResourceTest {
         @AfterAll
         public static void cleanDb() {
                 QuarkusTransaction.requiringNew().run(() -> {
+                        MealPlanRecipe.deleteAll();
+                        MealPlanRecipe.flush();
                         UserRecipeInteraction.deleteAll();
                         UserRecipeInteraction.flush();
                         MealPlan.deleteAll();
@@ -105,6 +117,7 @@ public class MealPlanResourceTest {
         @AfterEach
         @Transactional
         public void cleanUp() {
+                MealPlanRecipe.deleteAll();
                 UserRecipeInteraction.deleteAll();
                 MealPlan.deleteAll();
                 user.delete();
@@ -143,323 +156,6 @@ public class MealPlanResourceTest {
                 assertNotNull(mealPlan);
         }
 
-        // Recommendation Tests
-        @Test
-        @TestSecurity(user = "testuser", roles = "authenticated")
-        @JwtSecurity(claims = {
-                        @Claim(key = "sub", value = USER_ID_STRING),
-                        @Claim(key = "email", value = "me@test.com")
-        })
-        public void testGetRecommendationsForMealPlan() {
-                // Create a Meal Plan
-                MealPlanResponse response = given()
-                                .when()
-                                .contentType("application/json")
-                                .body("""
-                                                {
-                                                    "numRecipes": 2,
-                                                    "recipeSource": "all"
-                                                }
-                                                """.formatted(user.id))
-                                .post("/api/meal-plans")
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(MealPlanResponse.class);
-                mealPlan = MealPlan.findById(UUID.fromString(response.id()));
-                assertNotNull(mealPlan);
-
-                // Get recommendations
-                List<RecipeDTO> recommendations = given()
-                                .when()
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .get("/api/meal-plans/%s/recommendations?num_recipes=2".formatted(response.id()))
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(new TypeRef<List<RecipeDTO>>() {
-                                });
-                assertEquals(2, recommendations.size());
-
-        }
-
-        @Test
-        @TestSecurity(user = "testuser", roles = "authenticated")
-        @JwtSecurity(claims = {
-                        @Claim(key = "sub", value = USER_ID_STRING),
-                        @Claim(key = "email", value = "me@test.com")
-        })
-        public void testGetRecommendationsForMealPlanReturnsAsManyAsItCan() {
-                // Create a Meal Plan
-                MealPlanResponse response = given()
-                                .when()
-                                .contentType("application/json")
-                                .body("""
-                                                {
-                                                    "numRecipes": 5,
-                                                    "recipeSource": "all"
-                                                }
-                                                """.formatted(user.id))
-                                .post("/api/meal-plans")
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(MealPlanResponse.class);
-                mealPlan = MealPlan.findById(UUID.fromString(response.id()));
-                assertNotNull(mealPlan);
-
-                // Get recommendations
-                List<RecipeDTO> recommendations = given()
-                                .when()
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(new TypeRef<List<RecipeDTO>>() {
-                                });
-                // Returns only 3 as that's how many recipes we have seeded
-                assertEquals(3, recommendations.size());
-        }
-
-        @Test
-        @TestSecurity(user = "testuser", roles = "authenticated")
-        @JwtSecurity(claims = {
-                        @Claim(key = "sub", value = USER_ID_STRING),
-                        @Claim(key = "email", value = "me@test.com")
-        })
-        public void testGetRecommendationsIgnoresRejectedMeals() {
-                // Create a Meal Plan
-                MealPlanResponse response = given()
-                                .when()
-                                .contentType("application/json")
-                                .body("""
-                                                {
-                                                    "numRecipes": 5,
-                                                    "recipeSource": "all"
-                                                }
-                                                """.formatted(user.id))
-                                .post("/api/meal-plans")
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(MealPlanResponse.class);
-                mealPlan = MealPlan.findById(UUID.fromString(response.id()));
-                assertNotNull(mealPlan);
-
-                feedbackService.processFeedback(user.id, recipes.getFirst().id, mealPlan.id, FeedbackAction.REJECTED);
-
-                // Get recommendations
-                List<RecipeDTO> recommendations = given()
-                                .when()
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(new TypeRef<List<RecipeDTO>>() {
-                                });
-                // Returns only 2 as that's how many recipes we have that aren't rejected
-                assertEquals(2, recommendations.size());
-        }
-
-        @Test
-        @TestSecurity(user = "testuser", roles = "authenticated")
-        @JwtSecurity(claims = {
-                        @Claim(key = "sub", value = USER_ID_STRING),
-                        @Claim(key = "email", value = "me@test.com")
-        })
-        public void testGetRecommendationsIgnoresAcceptedMeals() {
-                // Create a Meal Plan
-                MealPlanResponse response = given()
-                                .when()
-                                .contentType("application/json")
-                                .body("""
-                                                {
-                                                    "numRecipes": 5,
-                                                    "recipeSource": "all"
-                                                }
-                                                """.formatted(user.id))
-                                .post("/api/meal-plans")
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(MealPlanResponse.class);
-                mealPlan = MealPlan.findById(UUID.fromString(response.id()));
-                assertNotNull(mealPlan);
-
-                feedbackService.processFeedback(user.id, recipes.getFirst().id, mealPlan.id, FeedbackAction.ACCEPTED);
-                feedbackService.processFeedback(user.id, recipes.getLast().id, mealPlan.id, FeedbackAction.ACCEPTED);
-
-                // Get recommendations
-                List<RecipeDTO> recommendations = given()
-                                .when()
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(new TypeRef<List<RecipeDTO>>() {
-                                });
-                // Returns only 1 as that's how many recipes we have that aren't accepted
-                assertEquals(1, recommendations.size());
-        }
-
-        @Test
-        @TestSecurity(user = "testuser", roles = "authenticated")
-        @JwtSecurity(claims = {
-                        @Claim(key = "sub", value = USER_ID_STRING),
-                        @Claim(key = "email", value = "me@test.com")
-        })
-        public void testGetRecommendationsExcludesMealsUsedInLast90Days() {
-                // Create a Meal Plan
-                MealPlanResponse response = given()
-                                .when()
-                                .contentType("application/json")
-                                .body("""
-                                                {
-                                                    "numRecipes": 5,
-                                                    "recipeSource": "all"
-                                                }
-                                                """.formatted(user.id))
-                                .post("/api/meal-plans")
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(MealPlanResponse.class);
-                mealPlan = MealPlan.findById(UUID.fromString(response.id()));
-                assertNotNull(mealPlan);
-
-                response = given()
-                                .when()
-                                .contentType("application/json")
-                                .body("""
-                                                {
-                                                    "userId": "%s",
-                                                    "numRecipes": 5,
-                                                    "recipeSource": "all"
-                                                }
-                                                """.formatted(user.id))
-                                .post("/api/meal-plans")
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(MealPlanResponse.class);
-                MealPlan oldMealPlan = MealPlan.findById(UUID.fromString(response.id()));
-                assertNotNull(oldMealPlan);
-
-                // Simulate a meal being used in the last 90 days
-                QuarkusTransaction.requiringNew().run(() -> {
-                        var interactionDate = Instant.now().minusSeconds(60 * 60 * 24 * 30); // 30 days ago
-                        entityManager
-                                        .createNativeQuery(
-                                                        """
-                                                                        INSERT INTO user_recipe_interactions (user_id, recipe_id, meal_plan_id, interaction_type, interaction_at)
-                                                                        VALUES (?, ?, ?, ?, ?)
-                                                                        """)
-                                        .setParameter(1, user.id)
-                                        .setParameter(2, recipes.getFirst().id)
-                                        .setParameter(3, oldMealPlan.id)
-                                        .setParameter(4, FeedbackAction.ACCEPTED.name())
-                                        .setParameter(5, interactionDate)
-                                        .executeUpdate();
-                        entityManager.flush();
-                });
-
-                // Get recommendations
-                List<RecipeDTO> recommendations = given()
-                                .when()
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(new TypeRef<List<RecipeDTO>>() {
-                                });
-                // Returns only 2 as that's how many recipes we have that aren't accepted
-                assertEquals(2, recommendations.size());
-
-        }
-
-        @TestSecurity(user = "testuser", roles = "authenticated")
-        @JwtSecurity(claims = {
-                        @Claim(key = "sub", value = USER_ID_STRING),
-                        @Claim(key = "email", value = "me@test.com")
-        })
-        @Test
-        public void testOnlyInteractionsForCurrentUserAreConsidered() {
-                // Create interaction in last 90 days for another user
-                User secondUser = createSecondUser();
-                MealPlanResponse response = given()
-                                .when()
-                                .contentType("application/json")
-                                .body("""
-                                                {
-                                                    "userId": "%s",
-                                                    "numRecipes": 5,
-                                                    "recipeSource": "all"
-                                                }
-                                                """.formatted(secondUser.id))
-                                .post("/api/meal-plans")
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(MealPlanResponse.class);
-                MealPlan oldMealPlan = MealPlan.findById(UUID.fromString(response.id()));
-                assertNotNull(oldMealPlan);
-
-                // Simulate a meal being used in the last 90 days
-                QuarkusTransaction.requiringNew().run(() -> {
-                        var interactionDate = Instant.now().minusSeconds(60 * 60 * 24 * 30); // 30 days ago
-                        entityManager
-                                        .createNativeQuery(
-                                                        """
-                                                                        INSERT INTO user_recipe_interactions (user_id, recipe_id, meal_plan_id, interaction_type, interaction_at)
-                                                                        VALUES (?, ?, ?, ?, ?)
-                                                                        """)
-                                        .setParameter(1, secondUser.id)
-                                        .setParameter(2, recipes.getFirst().id)
-                                        .setParameter(3, oldMealPlan.id)
-                                        .setParameter(4, FeedbackAction.ACCEPTED.name())
-                                        .setParameter(5, interactionDate)
-                                        .executeUpdate();
-                        entityManager.flush();
-                });
-
-                // Create new meal plan
-                response = given()
-                                .when()
-                                .contentType("application/json")
-                                .body("""
-                                                {
-                                                    "userId": "%s",
-                                                    "numRecipes": 5,
-                                                    "recipeSource": "all"
-                                                }
-                                                """.formatted(user.id))
-                                .post("/api/meal-plans")
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(MealPlanResponse.class);
-                mealPlan = MealPlan.findById(UUID.fromString(response.id()));
-                assertNotNull(mealPlan);
-
-                // Get recommendations
-                List<RecipeDTO> recommendations = given()
-                                .when()
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .get("/api/meal-plans/%s/recommendations?num_recipes=5".formatted(response.id()))
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(new TypeRef<List<RecipeDTO>>() {
-                                });
-                // Returns all 3 as they're available for this user
-                assertEquals(3, recommendations.size());
-
-        }
-
         @Transactional
         User createSecondUser() {
                 User user = User.Builder.builder()
@@ -489,8 +185,6 @@ public class MealPlanResourceTest {
                 return plan;
         }
 
-        // End RecommendationTests
-
         // Recipe Search Tests
 
         @Test
@@ -504,7 +198,7 @@ public class MealPlanResourceTest {
                                 .when()
                                 .contentType("application/json")
                                 .body("""
-                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                {"numRecipes": 0, "recipeSource": "all"}
                                                 """)
                                 .post("/api/meal-plans")
                                 .then()
@@ -538,7 +232,7 @@ public class MealPlanResourceTest {
                                 .when()
                                 .contentType("application/json")
                                 .body("""
-                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                {"numRecipes": 0, "recipeSource": "all"}
                                                 """)
                                 .post("/api/meal-plans")
                                 .then()
@@ -570,7 +264,7 @@ public class MealPlanResourceTest {
                                 .when()
                                 .contentType("application/json")
                                 .body("""
-                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                {"numRecipes": 0, "recipeSource": "all"}
                                                 """)
                                 .post("/api/meal-plans")
                                 .then()
@@ -580,6 +274,45 @@ public class MealPlanResourceTest {
                 MealPlan plan = MealPlan.findById(UUID.fromString(response.id()));
 
                 feedbackService.processFeedback(user.id, recipes.getFirst().id, plan.id, FeedbackAction.ACCEPTED);
+                mealPlanRecipeRepository.claim(plan.id, recipes.getFirst().id, "ACCEPTED");
+
+                List<RecipeDTO> results = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recipe-search?q=pan".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+
+                assertEquals(0, results.size());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testRecipeSearchExcludesOfferedRecipes() {
+                // The actual regression this fixes: a recipe merely offered
+                // (pending, untouched) in another slot of this plan must not
+                // be suggested again by search.
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 0, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlan plan = MealPlan.findById(UUID.fromString(response.id()));
+
+                mealPlanRecipeRepository.claim(plan.id, recipes.getFirst().id, "OFFERED");
 
                 List<RecipeDTO> results = given()
                                 .when()
@@ -605,7 +338,7 @@ public class MealPlanResourceTest {
                                 .when()
                                 .contentType("application/json")
                                 .body("""
-                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                {"numRecipes": 0, "recipeSource": "all"}
                                                 """)
                                 .post("/api/meal-plans")
                                 .then()
@@ -654,7 +387,7 @@ public class MealPlanResourceTest {
                                         .when()
                                         .contentType("application/json")
                                         .body("""
-                                                        {"numRecipes": 5, "recipeSource": "all"}
+                                                        {"numRecipes": 0, "recipeSource": "all"}
                                                         """)
                                         .post("/api/meal-plans")
                                         .then()
@@ -677,6 +410,11 @@ public class MealPlanResourceTest {
                         assertEquals("ZZSearchTest 10", results.get(9).title);
                 } finally {
                         QuarkusTransaction.requiringNew().run(() -> {
+                                // Plan creation may have claimed some of these into
+                                // meal_plan_recipes — clear those rows first so the FK
+                                // doesn't block deleting the recipes themselves.
+                                MealPlanRecipe.delete("id.recipeId in ?1",
+                                                extraRecipes.stream().map(r -> r.id).toList());
                                 extraRecipes.forEach(r -> Recipe.deleteById(r.id));
                         });
                 }
@@ -958,6 +696,342 @@ public class MealPlanResourceTest {
         }
 
         // End List Meal Plans Tests
+
+        // Get Meal Plan Full State Tests
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testGetMealPlanReturnsFullCurrentState() {
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 2, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+
+                MealPlanFullResponse fullState = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanFullResponse.class);
+
+                assertEquals(createResponse.id(), fullState.id());
+                assertEquals(2, fullState.recipes().size());
+                fullState.recipes().forEach(r -> assertEquals("OFFERED", r.status()));
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testGetMealPlanUnknownPlanReturns404() {
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s".formatted(UUID.randomUUID()))
+                                .then()
+                                .statusCode(404);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testGetMealPlanOwnedByOtherUserReturns403() {
+                User secondUser = createSecondUser();
+                MealPlan otherPlan = createMealPlanForUser(secondUser.id);
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s".formatted(otherPlan.id))
+                                .then()
+                                .statusCode(403);
+        }
+
+        // End Get Meal Plan Full State Tests
+
+        // Submit Feedback Tests
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testSubmitFeedbackAcceptUpdatesRowToAccepted() {
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 2, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlanFullResponse initialState = getMealPlanState(createResponse.id());
+                UUID recipeId = initialState.recipes().get(0).recipe().id;
+
+                FeedbackResponse feedbackResponse = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipe_id\": \"%s\", \"action\": \"accepted\"}".formatted(recipeId))
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(FeedbackResponse.class);
+
+                assertEquals(recipeId, feedbackResponse.recipe().id);
+                assertEquals("ACCEPTED", feedbackResponse.status());
+
+                MealPlanFullResponse updatedState = getMealPlanState(createResponse.id());
+                assertEquals(2, updatedState.recipes().size());
+                assertEquals(1, updatedState.recipes().stream().filter(r -> "ACCEPTED".equals(r.status())).count());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testSubmitFeedbackRejectClaimsARandomReplacementIntoTheSameSlot() {
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 1, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlanFullResponse initialState = getMealPlanState(createResponse.id());
+                UUID recipeId = initialState.recipes().get(0).recipe().id;
+
+                FeedbackResponse feedbackResponse = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipe_id\": \"%s\", \"action\": \"rejected\"}".formatted(recipeId))
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(FeedbackResponse.class);
+
+                assertNotNull(feedbackResponse.recipe());
+                assertNotEquals(recipeId, feedbackResponse.recipe().id);
+                assertEquals("OFFERED", feedbackResponse.status());
+
+                MealPlanFullResponse updatedState = getMealPlanState(createResponse.id());
+                assertEquals(1, updatedState.recipes().size());
+                assertEquals(feedbackResponse.recipe().id, updatedState.recipes().get(0).recipe().id);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testSubmitFeedbackRejectWithExhaustedPoolDeletesTheRow() {
+                // Claim all 3 seeded recipes so nothing is left to replace with.
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 3, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlanFullResponse initialState = getMealPlanState(createResponse.id());
+                assertEquals(3, initialState.recipes().size());
+                UUID recipeId = initialState.recipes().get(0).recipe().id;
+
+                FeedbackResponse feedbackResponse = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipe_id\": \"%s\", \"action\": \"rejected\"}".formatted(recipeId))
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(FeedbackResponse.class);
+
+                assertNull(feedbackResponse.recipe());
+                assertEquals("REMOVED", feedbackResponse.status());
+
+                MealPlanFullResponse updatedState = getMealPlanState(createResponse.id());
+                assertEquals(2, updatedState.recipes().size());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testSubmitFeedbackForARecipeNotPendingInThisPlanReturns409() {
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 1, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipe_id\": \"%s\", \"action\": \"accepted\"}".formatted(UUID.randomUUID()))
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(409);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testSubmitFeedbackDoubleSubmissionOnTheSameSlotReturns409() {
+                // Claim all 3 seeded recipes so the reject below has no
+                // replacement available and deletes the row outright.
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 3, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlanFullResponse initialState = getMealPlanState(createResponse.id());
+                UUID recipeId = initialState.recipes().get(0).recipe().id;
+
+                String body = "{\"recipe_id\": \"%s\", \"action\": \"accepted\"}".formatted(recipeId);
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(body)
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200);
+
+                // Retried/duplicate submission for the same already-accepted recipe:
+                // the row's status changed but a second ACCEPT on it is still valid
+                // in this design (idempotent). Reject on an already-rejected/removed
+                // slot, however, must conflict once the row is gone.
+                FeedbackResponse rejectResponse = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipe_id\": \"%s\", \"action\": \"rejected\"}".formatted(recipeId))
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(FeedbackResponse.class);
+                assertEquals("REMOVED", rejectResponse.status());
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(body)
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(409);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testSubmitFeedbackReplaceWithSpecificAtomicallyAcceptsTheNewRecipe() {
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 1, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlanFullResponse initialState = getMealPlanState(createResponse.id());
+                UUID oldRecipeId = initialState.recipes().get(0).recipe().id;
+                UUID newRecipeId = recipes.stream()
+                                .map(r -> r.id)
+                                .filter(id -> !id.equals(oldRecipeId))
+                                .findFirst()
+                                .orElseThrow();
+
+                FeedbackResponse feedbackResponse = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("""
+                                                {"recipe_id": "%s", "action": "rejected", "replacement_recipe_id": "%s"}
+                                                """.formatted(oldRecipeId, newRecipeId))
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(FeedbackResponse.class);
+
+                assertEquals(newRecipeId, feedbackResponse.recipe().id);
+                assertEquals("ACCEPTED", feedbackResponse.status());
+
+                MealPlanFullResponse updatedState = getMealPlanState(createResponse.id());
+                assertEquals(1, updatedState.recipes().size());
+                assertEquals(newRecipeId, updatedState.recipes().get(0).recipe().id);
+                assertEquals("ACCEPTED", updatedState.recipes().get(0).status());
+        }
+
+        private MealPlanFullResponse getMealPlanState(String mealPlanId) {
+                return given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s".formatted(mealPlanId))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanFullResponse.class);
+        }
+
+        // End Submit Feedback Tests
 
         // Accepted Recipes Tests
 

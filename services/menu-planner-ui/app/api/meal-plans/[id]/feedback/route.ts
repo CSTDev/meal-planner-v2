@@ -43,7 +43,8 @@ export async function POST(
             );
         }
 
-        return NextResponse.json({ success: true });
+        const data = await response.json();
+        return NextResponse.json(data);
     } catch (error) {
         console.error('Error recording feedback:', error);
         return NextResponse.json(

@@ -4,17 +4,20 @@ import { useState } from 'react';
 import RecipeCard from '@/app/components/RecipeCard';
 import RecipeSelector from '@/app/components/RecipeSelector';
 import ShoppingListOverlay from '@/app/components/ShoppingListOverlay';
-import { recordFeedback, getMealPlanRecommendations, getShoppingList } from '@/lib/api/mealPlans';
+import { recordFeedback, getShoppingList } from '@/lib/api/mealPlans';
 import { MealPlan, Recipe, ShoppingListResponse } from '@/types/recipe';
 
 interface MealPlanViewProps {
     mealPlan: MealPlan;
+    /** Recipe ids already ACCEPTED when this view was hydrated (e.g. after a refresh). */
+    initialAcceptedRecipeIds?: string[];
     onMealPlanUpdated: (mealPlan: MealPlan) => void;
     onReset: () => void;
 }
 
 export default function MealPlanView({
     mealPlan,
+    initialAcceptedRecipeIds = [],
     onMealPlanUpdated,
     onReset
 }: MealPlanViewProps) {
@@ -23,8 +26,14 @@ export default function MealPlanView({
     const [shoppingList, setShoppingList] = useState<ShoppingListResponse | null>(null);
     const [isShoppingListLoading, setIsShoppingListLoading] = useState(false);
     const [shoppingListError, setShoppingListError] = useState<string | null>(null);
-    const [acceptedRecipeIds, setAcceptedRecipeIds] = useState<Set<string>>(new Set());
+    const [acceptedRecipeIds, setAcceptedRecipeIds] = useState<Set<string>>(
+        () => new Set(initialAcceptedRecipeIds)
+    );
     const [acceptError, setAcceptError] = useState<string | null>(null);
+    // The number of slots this plan started with, before any reject
+    // exhausted the pool and removed one. Used to render "X of Y filled".
+    const [originalSlotCount] = useState(mealPlan.recipes.length);
+    const [exhaustedCount, setExhaustedCount] = useState(0);
 
     const acceptedCount = acceptedRecipeIds.size;
     const totalCount = mealPlan.recipes.length;
@@ -32,8 +41,7 @@ export default function MealPlanView({
     const handleReject = async (recipe: Recipe, index: number) => {
         setAcceptError(null);
         try {
-            // Record rejection
-            await recordFeedback(mealPlan.id, recipe.id, 'rejected');
+            const { recipe: replacement } = await recordFeedback(mealPlan.id, recipe.id, 'rejected');
 
             // Remove from accepted set if it was accepted
             setAcceptedRecipeIds(prev => {
@@ -42,18 +50,20 @@ export default function MealPlanView({
                 return next;
             });
 
-            // Get replacement
-            const replacements = await getMealPlanRecommendations(mealPlan.id, 1);
-
-            if (replacements.length > 0) {
-                const updatedRecipes = [...mealPlan.recipes];
-                updatedRecipes[index] = replacements[0];
-
-                onMealPlanUpdated({
-                    ...mealPlan,
-                    recipes: updatedRecipes,
-                });
+            const updatedRecipes = [...mealPlan.recipes];
+            if (replacement) {
+                updatedRecipes[index] = replacement;
+            } else {
+                // Pool exhausted — no stable position to pin a placeholder to,
+                // so the slot is simply removed.
+                updatedRecipes.splice(index, 1);
+                setExhaustedCount(prev => prev + 1);
             }
+
+            onMealPlanUpdated({
+                ...mealPlan,
+                recipes: updatedRecipes,
+            });
         } catch (error) {
             console.error('Failed to reject recipe:', error);
         }
@@ -101,13 +111,8 @@ export default function MealPlanView({
         try {
             const oldRecipe = mealPlan.recipes[index];
 
-            // Record rejection of old recipe
-            await recordFeedback(mealPlan.id, oldRecipe.id, 'rejected');
-
-            // Auto-accept the chosen replacement — guard against re-firing if already accepted
-            if (!acceptedRecipeIds.has(recipe.id)) {
-                await recordFeedback(mealPlan.id, recipe.id, 'accepted');
-            }
+            // Atomic reject-old + accept-new in a single call.
+            await recordFeedback(mealPlan.id, oldRecipe.id, 'rejected', recipe.id);
 
             const updatedRecipes = [...mealPlan.recipes];
             updatedRecipes[index] = recipe;
@@ -142,6 +147,12 @@ export default function MealPlanView({
                     <p className="text-sm text-gray-600 mt-1">
                         {acceptedCount} of {totalCount} accepted
                     </p>
+                    {exhaustedCount > 0 && (
+                        <p className="text-sm text-amber-600 mt-1" role="status">
+                            {totalCount} of {originalSlotCount} recipes could be filled — ran out of
+                            available recipes for the rest.
+                        </p>
+                    )}
                     {acceptError && (
                         <p className="text-sm text-red-600 mt-1" role="alert">
                             {acceptError}

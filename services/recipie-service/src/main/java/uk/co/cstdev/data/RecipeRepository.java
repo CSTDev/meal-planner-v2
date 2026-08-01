@@ -18,16 +18,19 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
         return list("scrapedByUserId", userId);
     }
 
+    /**
+     * Excludes recipes currently present in meal_plan_recipes for this
+     * plan — offered or accepted — so a user can't search up and pick a
+     * recipe already pending elsewhere in the same plan.
+     */
     public List<Recipe> searchByTitle(String q, UUID mealPlanId, UUID userId) {
         String sql = """
                 SELECT r.*
                 FROM recipes r
                 WHERE r.title ILIKE '%' || :q || '%'
                 AND r.id NOT IN (
-                    SELECT recipe_id FROM user_recipe_interactions
-                    WHERE interaction_type = :acceptedType
-                    AND meal_plan_id = :meal_plan_id
-                    AND user_id = :user_id
+                    SELECT recipe_id FROM meal_plan_recipes
+                    WHERE meal_plan_id = :meal_plan_id
                 )
                 ORDER BY r.title ASC
                 LIMIT 10
@@ -36,41 +39,38 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
         return em.createNativeQuery(sql, Recipe.class)
                 .setParameter("q", q)
                 .setParameter("meal_plan_id", mealPlanId)
-                .setParameter("user_id", userId)
-                .setParameter("acceptedType", FeedbackAction.ACCEPTED.name())
                 .getResultList();
     }
 
-    public List<Recipe> findRecommendations(int numRecipes, UUID mealPlanId, UUID userId) {
-        String hql = """
+    /**
+     * Candidate recipes eligible to be claimed into a meal plan slot, in
+     * random order: excludes recipes already accepted/rejected in this
+     * plan, recipes with any interaction in the last 90 days, and recipes
+     * already present in meal_plan_recipes for this plan (offered or
+     * accepted elsewhere in it) — a single join rather than three separate
+     * NOT IN subqueries.
+     */
+    public List<Recipe> findEligibleCandidates(UUID mealPlanId, UUID userId, int limit) {
+        String sql = """
                 SELECT r.*
                 FROM recipes r
                 WHERE r.id NOT IN (
-                    -- Exclude recipes already accepted in this meal plan
                     SELECT recipe_id FROM user_recipe_interactions
-                    WHERE interaction_type = :acceptedType
-                    AND meal_plan_id = :meal_plan_id
-                    and user_id = :user_id
+                    WHERE user_id = :user_id
+                    AND (
+                        (interaction_type IN (:acceptedType, :rejectedType) AND meal_plan_id = :meal_plan_id)
+                        OR interaction_at > NOW() - INTERVAL '90 days'
+                    )
                 )
                 AND r.id NOT IN (
-                    -- Exclude recipes rejected in this meal plan
-                    SELECT recipe_id FROM user_recipe_interactions
-                    WHERE interaction_type = :rejectedType
-                    AND meal_plan_id = :meal_plan_id
-                    and user_id = :user_id
-                )
-                AND r.id NOT IN (
-                    -- Exclude recently shown recipes (last 90 days)
-                    SELECT recipe_id FROM user_recipe_interactions
-                    WHERE interaction_at > NOW() - INTERVAL '90 days'
-                    and user_id = :user_id
+                    SELECT recipe_id FROM meal_plan_recipes WHERE meal_plan_id = :meal_plan_id
                 )
                 ORDER BY RANDOM()
-                LIMIT :num_recipes;
+                LIMIT :limit
                 """;
 
-        return em.createNativeQuery(hql, Recipe.class)
-                .setParameter("num_recipes", numRecipes)
+        return em.createNativeQuery(sql, Recipe.class)
+                .setParameter("limit", limit)
                 .setParameter("meal_plan_id", mealPlanId)
                 .setParameter("user_id", userId)
                 .setParameter("acceptedType", FeedbackAction.ACCEPTED.name())

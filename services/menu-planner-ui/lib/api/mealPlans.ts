@@ -1,4 +1,4 @@
-import { ShoppingListResponse } from '@/types/recipe';
+import { Recipe, ShoppingListResponse } from '@/types/recipe';
 
 export interface CreateMealPlanRequest {
     numRecipes: number;
@@ -16,6 +16,40 @@ export interface MealPlanResponse {
 export interface RecordFeedbackRequest {
     recipeId: string;
     action: 'accepted' | 'rejected';
+}
+
+/**
+ * One row of a meal plan's live state: a recipe currently occupying a
+ * slot, either still pending a decision or already accepted.
+ */
+export interface MealPlanRecipeState {
+    recipe: Recipe;
+    status: 'OFFERED' | 'ACCEPTED';
+}
+
+/**
+ * The plan's full current live state, as returned by
+ * GET /api/meal-plans/{id} — this is the only place plan state is loaded
+ * from, whether that's right after creation or after a refresh.
+ */
+export interface MealPlanFullState {
+    id: string;
+    userId: string;
+    recipeSource: 'own' | 'all' | 'shared';
+    createdAt: string;
+    status: string;
+    recipes: MealPlanRecipeState[];
+}
+
+/**
+ * The result of submitting feedback for one slot. `recipe` is the recipe
+ * now occupying the slot (unchanged on accept, the replacement on
+ * reject/replace), or `null` when a reject exhausted the eligible pool and
+ * the slot was removed entirely.
+ */
+export interface FeedbackResult {
+    recipe: Recipe | null;
+    status: string;
 }
 
 export interface PastMealPlan {
@@ -83,37 +117,39 @@ export async function getPastMealPlans(): Promise<PastMealPlan[]> {
 }
 
 /**
- * Get recipe recommendations for a meal plan
+ * Get a meal plan's full current state (every recipe currently offered or
+ * accepted, with its status). This is what the [id] page hydrates from on
+ * mount, whether that's right after creation or after a refresh.
  */
-export async function getMealPlanRecommendations(
-    mealPlanId: string,
-    numRecipes: number
-) {
-    const response = await fetch(
-        `/api/meal-plans/${mealPlanId}/recommendations?num_recipes=${numRecipes}`,
-        {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        }
-    );
+export async function getMealPlan(mealPlanId: string): Promise<MealPlanFullState> {
+    const response = await fetch(`/api/meal-plans/${mealPlanId}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
 
     if (!response.ok) {
-        throw new Error('Failed to get recommendations');
+        throw new Error('Failed to get meal plan');
     }
 
     return response.json();
 }
 
 /**
- * Record user feedback (accept/reject) for a recipe
+ * Record user feedback (accept/reject) for a recipe. On reject, optionally
+ * pass `replacementRecipeId` to atomically replace it with a specific
+ * recipe (the "Choose Different" flow) instead of claiming a random one.
+ *
+ * Returns the recipe now occupying the slot (`null` if a plain reject
+ * exhausted the eligible pool and the slot was removed) plus its status.
  */
 export async function recordFeedback(
     mealPlanId: string,
     recipeId: string,
-    action: 'accepted' | 'rejected'
-): Promise<void> {
+    action: 'accepted' | 'rejected',
+    replacementRecipeId?: string
+): Promise<FeedbackResult> {
     const response = await fetch(
         `/api/meal-plans/${mealPlanId}/feedback`,
         {
@@ -124,6 +160,7 @@ export async function recordFeedback(
             body: JSON.stringify({
                 recipe_id: recipeId,
                 action,
+                ...(replacementRecipeId ? { replacement_recipe_id: replacementRecipeId } : {}),
             }),
         }
     );
@@ -131,6 +168,8 @@ export async function recordFeedback(
     if (!response.ok) {
         throw new Error('Failed to record feedback');
     }
+
+    return response.json();
 }
 
 /**

@@ -3,17 +3,9 @@ import { render, screen } from '@testing-library/react';
 import MealPlanPage from '@/app/meal-plan/page';
 
 jest.mock('@/app/components/MealPlanGenerator', () => {
-    const MockMealPlanGenerator = ({ onMealPlanCreated }: { onMealPlanCreated: (plan: unknown) => void }) => (
-        <div data-testid="meal-plan-generator" onClick={() => onMealPlanCreated(null)} />
-    );
+    const MockMealPlanGenerator = () => <div data-testid="meal-plan-generator" />;
     MockMealPlanGenerator.displayName = 'MockMealPlanGenerator';
     return MockMealPlanGenerator;
-});
-
-jest.mock('@/app/components/MealPlanView', () => {
-    const MockMealPlanView = () => <div data-testid="meal-plan-view" />;
-    MockMealPlanView.displayName = 'MockMealPlanView';
-    return MockMealPlanView;
 });
 
 describe('MealPlanPage', () => {
@@ -27,5 +19,10 @@ describe('MealPlanPage', () => {
         const headerBlock = container.querySelector('.meal-plan-page-header');
         expect(headerBlock).toBeInTheDocument();
         expect(headerBlock).toContainElement(screen.getByRole('heading', { name: /meal plan generator/i }));
+    });
+
+    it('renders the meal plan generator, which owns creation and redirect', () => {
+        render(<MealPlanPage />);
+        expect(screen.getByTestId('meal-plan-generator')).toBeInTheDocument();
     });
 });

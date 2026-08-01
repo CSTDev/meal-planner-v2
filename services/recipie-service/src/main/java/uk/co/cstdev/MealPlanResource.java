@@ -31,6 +31,7 @@ import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.RecipeFeedback;
 import uk.co.cstdev.data.UserRecipeInteraction;
+import uk.co.cstdev.data.mealplan.FeedbackResponse;
 import uk.co.cstdev.data.mealplan.MealPlanRequest;
 import uk.co.cstdev.data.mealplan.MealPlanResponse;
 import uk.co.cstdev.data.mealplan.MealPlanSummaryResponse;
@@ -39,6 +40,7 @@ import uk.co.cstdev.service.FeedbackService;
 import uk.co.cstdev.service.MealPlanService;
 import uk.co.cstdev.service.RecipeService;
 import uk.co.cstdev.service.ShoppingListService;
+import uk.co.cstdev.service.StaleFeedbackException;
 
 @Path("/api/meal-plans")
 @Consumes(MediaType.APPLICATION_JSON)
@@ -92,30 +94,13 @@ public class MealPlanResource {
                 return Response.ok(plans).build();
         }
 
-        // TODO should this be here or it a RecommendationResource?
-        @GET
-        @Path("/{id}/recommendations")
-        @Operation(summary = "Get recipe recommendations", description = "Returns recipe recommendations for a given meal plan")
-        @APIResponse(responseCode = "200", description = "List of recommended recipes")
-        @APIResponse(responseCode = "401", description = "Unauthorized")
-        public Response getMealPlanRecommendations(@PathParam("id") String id,
-                        @QueryParam("num_recipes") int numRecipes) {
-                String userId = jwt.getSubject();
-                LOGGER.infof("Fetching %d recommendations for user=%s meal_plan_id=%s", numRecipes, userId, id);
-                List<Recipe> recommendations = recipeService.getRecommendations(numRecipes, id,
-                                UUID.fromString(userId));
-                List<RecipeDTO> dtos = recommendations.stream()
-                                .map(RecipeDTO::from)
-                                .toList();
-                return Response.ok(dtos).build();
-        }
-
         // TODO should this be here or it a FeedbackResource?
         @POST
         @Path("/{mealPlanId}/feedback")
-        @Operation(summary = "Submit recipe feedback", description = "Records an accept/reject/view interaction for a recipe within a meal plan")
+        @Operation(summary = "Submit recipe feedback", description = "Records an accept/reject decision for a recipe within a meal plan, and where relevant returns the recipe now occupying that slot")
         @APIResponse(responseCode = "200", description = "Feedback recorded")
         @APIResponse(responseCode = "401", description = "Unauthorized")
+        @APIResponse(responseCode = "409", description = "The recipe is no longer pending/offered in this meal plan")
         public Response submitFeedback(
                         @PathParam("mealPlanId") String mealPlanId,
                         RecipeFeedback request) {
@@ -127,9 +112,13 @@ public class MealPlanResource {
 
                 UUID userId = UUID.fromString(jwt.getSubject());
 
-                feedbackService.processFeedback(userId, request.recipe_id(), mealPlanUuid, request.action());
-
-                return Response.ok().build();
+                try {
+                        FeedbackResponse response = feedbackService.submitFeedback(userId, mealPlanUuid,
+                                        request.recipe_id(), request.action(), request.replacement_recipe_id());
+                        return Response.ok(response).build();
+                } catch (StaleFeedbackException e) {
+                        return Response.status(Response.Status.CONFLICT).build();
+                }
         }
 
         @GET
@@ -167,6 +156,34 @@ public class MealPlanResource {
                                 .map(RecipeDTO::from)
                                 .toList();
                 return Response.ok(dtos).build();
+        }
+
+        @GET
+        @Path("/{id}")
+        @Operation(summary = "Get a meal plan's full current state", description = "Returns every recipe currently offered or accepted in this meal plan, with its status")
+        @APIResponse(responseCode = "200", description = "Meal plan state")
+        @APIResponse(responseCode = "401", description = "Unauthorized")
+        @APIResponse(responseCode = "403", description = "Meal plan does not belong to the authenticated user")
+        @APIResponse(responseCode = "404", description = "Meal plan not found")
+        public Response getMealPlan(@PathParam("id") String id) {
+                String userId = jwt.getSubject();
+
+                MealPlan mealPlan;
+                try {
+                        mealPlan = MealPlan.findById(UUID.fromString(id));
+                } catch (IllegalArgumentException e) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan == null) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan.userId == null || !mealPlan.userId.toString().equals(userId)) {
+                        return Response.status(Response.Status.FORBIDDEN).build();
+                }
+
+                return Response.ok(mealPlanService.getMealPlanState(mealPlan)).build();
         }
 
         @GET
