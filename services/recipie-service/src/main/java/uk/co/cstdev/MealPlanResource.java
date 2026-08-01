@@ -31,6 +31,7 @@ import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.RecipeFeedback;
 import uk.co.cstdev.data.UserRecipeInteraction;
+import uk.co.cstdev.data.mealplan.FeedbackResponse;
 import uk.co.cstdev.data.mealplan.MealPlanRequest;
 import uk.co.cstdev.data.mealplan.MealPlanResponse;
 import uk.co.cstdev.data.mealplan.MealPlanSummaryResponse;
@@ -39,6 +40,7 @@ import uk.co.cstdev.service.FeedbackService;
 import uk.co.cstdev.service.MealPlanService;
 import uk.co.cstdev.service.RecipeService;
 import uk.co.cstdev.service.ShoppingListService;
+import uk.co.cstdev.service.StaleFeedbackException;
 
 @Path("/api/meal-plans")
 @Consumes(MediaType.APPLICATION_JSON)
@@ -113,9 +115,10 @@ public class MealPlanResource {
         // TODO should this be here or it a FeedbackResource?
         @POST
         @Path("/{mealPlanId}/feedback")
-        @Operation(summary = "Submit recipe feedback", description = "Records an accept/reject/view interaction for a recipe within a meal plan")
+        @Operation(summary = "Submit recipe feedback", description = "Records an accept/reject decision for a recipe within a meal plan, and where relevant returns the recipe now occupying that slot")
         @APIResponse(responseCode = "200", description = "Feedback recorded")
         @APIResponse(responseCode = "401", description = "Unauthorized")
+        @APIResponse(responseCode = "409", description = "The recipe is no longer pending/offered in this meal plan")
         public Response submitFeedback(
                         @PathParam("mealPlanId") String mealPlanId,
                         RecipeFeedback request) {
@@ -127,9 +130,13 @@ public class MealPlanResource {
 
                 UUID userId = UUID.fromString(jwt.getSubject());
 
-                feedbackService.processFeedback(userId, request.recipe_id(), mealPlanUuid, request.action());
-
-                return Response.ok().build();
+                try {
+                        FeedbackResponse response = feedbackService.submitFeedback(userId, mealPlanUuid,
+                                        request.recipe_id(), request.action(), request.replacement_recipe_id());
+                        return Response.ok(response).build();
+                } catch (StaleFeedbackException e) {
+                        return Response.status(Response.Status.CONFLICT).build();
+                }
         }
 
         @GET

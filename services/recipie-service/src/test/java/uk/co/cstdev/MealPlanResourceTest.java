@@ -1,7 +1,9 @@
 package uk.co.cstdev;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -33,6 +35,7 @@ import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.User;
 import uk.co.cstdev.data.UserRecipeInteraction;
+import uk.co.cstdev.data.mealplan.FeedbackResponse;
 import uk.co.cstdev.data.mealplan.MealPlanFullResponse;
 import uk.co.cstdev.data.mealplan.MealPlanResponse;
 import uk.co.cstdev.data.mealplan.MealPlanSummaryResponse;
@@ -1039,6 +1042,272 @@ public class MealPlanResourceTest {
         }
 
         // End Get Meal Plan Full State Tests
+
+        // Submit Feedback Tests
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testSubmitFeedbackAcceptUpdatesRowToAccepted() {
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 2, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlanFullResponse initialState = getMealPlanState(createResponse.id());
+                UUID recipeId = initialState.recipes().get(0).recipe().id;
+
+                FeedbackResponse feedbackResponse = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipe_id\": \"%s\", \"action\": \"accepted\"}".formatted(recipeId))
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(FeedbackResponse.class);
+
+                assertEquals(recipeId, feedbackResponse.recipe().id);
+                assertEquals("ACCEPTED", feedbackResponse.status());
+
+                MealPlanFullResponse updatedState = getMealPlanState(createResponse.id());
+                assertEquals(2, updatedState.recipes().size());
+                assertEquals(1, updatedState.recipes().stream().filter(r -> "ACCEPTED".equals(r.status())).count());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testSubmitFeedbackRejectClaimsARandomReplacementIntoTheSameSlot() {
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 1, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlanFullResponse initialState = getMealPlanState(createResponse.id());
+                UUID recipeId = initialState.recipes().get(0).recipe().id;
+
+                FeedbackResponse feedbackResponse = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipe_id\": \"%s\", \"action\": \"rejected\"}".formatted(recipeId))
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(FeedbackResponse.class);
+
+                assertNotNull(feedbackResponse.recipe());
+                assertNotEquals(recipeId, feedbackResponse.recipe().id);
+                assertEquals("OFFERED", feedbackResponse.status());
+
+                MealPlanFullResponse updatedState = getMealPlanState(createResponse.id());
+                assertEquals(1, updatedState.recipes().size());
+                assertEquals(feedbackResponse.recipe().id, updatedState.recipes().get(0).recipe().id);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testSubmitFeedbackRejectWithExhaustedPoolDeletesTheRow() {
+                // Claim all 3 seeded recipes so nothing is left to replace with.
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 3, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlanFullResponse initialState = getMealPlanState(createResponse.id());
+                assertEquals(3, initialState.recipes().size());
+                UUID recipeId = initialState.recipes().get(0).recipe().id;
+
+                FeedbackResponse feedbackResponse = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipe_id\": \"%s\", \"action\": \"rejected\"}".formatted(recipeId))
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(FeedbackResponse.class);
+
+                assertNull(feedbackResponse.recipe());
+                assertEquals("REMOVED", feedbackResponse.status());
+
+                MealPlanFullResponse updatedState = getMealPlanState(createResponse.id());
+                assertEquals(2, updatedState.recipes().size());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testSubmitFeedbackForARecipeNotPendingInThisPlanReturns409() {
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 1, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipe_id\": \"%s\", \"action\": \"accepted\"}".formatted(UUID.randomUUID()))
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(409);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testSubmitFeedbackDoubleSubmissionOnTheSameSlotReturns409() {
+                // Claim all 3 seeded recipes so the reject below has no
+                // replacement available and deletes the row outright.
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 3, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlanFullResponse initialState = getMealPlanState(createResponse.id());
+                UUID recipeId = initialState.recipes().get(0).recipe().id;
+
+                String body = "{\"recipe_id\": \"%s\", \"action\": \"accepted\"}".formatted(recipeId);
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(body)
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200);
+
+                // Retried/duplicate submission for the same already-accepted recipe:
+                // the row's status changed but a second ACCEPT on it is still valid
+                // in this design (idempotent). Reject on an already-rejected/removed
+                // slot, however, must conflict once the row is gone.
+                FeedbackResponse rejectResponse = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipe_id\": \"%s\", \"action\": \"rejected\"}".formatted(recipeId))
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(FeedbackResponse.class);
+                assertEquals("REMOVED", rejectResponse.status());
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(body)
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(409);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testSubmitFeedbackReplaceWithSpecificAtomicallyAcceptsTheNewRecipe() {
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 1, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlanFullResponse initialState = getMealPlanState(createResponse.id());
+                UUID oldRecipeId = initialState.recipes().get(0).recipe().id;
+                UUID newRecipeId = recipes.stream()
+                                .map(r -> r.id)
+                                .filter(id -> !id.equals(oldRecipeId))
+                                .findFirst()
+                                .orElseThrow();
+
+                FeedbackResponse feedbackResponse = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("""
+                                                {"recipe_id": "%s", "action": "rejected", "replacement_recipe_id": "%s"}
+                                                """.formatted(oldRecipeId, newRecipeId))
+                                .post("/api/meal-plans/%s/feedback".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(FeedbackResponse.class);
+
+                assertEquals(newRecipeId, feedbackResponse.recipe().id);
+                assertEquals("ACCEPTED", feedbackResponse.status());
+
+                MealPlanFullResponse updatedState = getMealPlanState(createResponse.id());
+                assertEquals(1, updatedState.recipes().size());
+                assertEquals(newRecipeId, updatedState.recipes().get(0).recipe().id);
+                assertEquals("ACCEPTED", updatedState.recipes().get(0).status());
+        }
+
+        private MealPlanFullResponse getMealPlanState(String mealPlanId) {
+                return given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s".formatted(mealPlanId))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanFullResponse.class);
+        }
+
+        // End Submit Feedback Tests
 
         // Accepted Recipes Tests
 

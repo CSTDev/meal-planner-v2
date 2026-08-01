@@ -1,5 +1,6 @@
 package uk.co.cstdev.data;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -25,8 +26,13 @@ public class RecipeDTO {
         dto.url = recipe.url;
         dto.title = recipe.title;
         dto.description = recipe.description;
-        dto.ingredients = recipe.ingredients;
-        dto.instructions = recipe.instructions;
+        // Copy lazily-loaded collections into plain ArrayLists here, while
+        // still inside an active persistence context: callers that build
+        // this DTO inside an explicit @Transactional method (whose session
+        // closes when the method returns, before Jackson serializes the
+        // response) would otherwise hit a LazyInitializationException.
+        dto.ingredients = recipe.ingredients == null ? null : new ArrayList<>(recipe.ingredients);
+        dto.instructions = recipe.instructions == null ? null : new ArrayList<>(recipe.instructions);
         dto.prepTimeMinutes = recipe.prepTimeMinutes;
         dto.cookTimeMinutes = recipe.cookTimeMinutes;
         dto.servings = recipe.servings;

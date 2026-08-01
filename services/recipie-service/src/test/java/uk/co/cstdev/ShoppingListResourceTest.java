@@ -24,6 +24,7 @@ import jakarta.transaction.Transactional;
 import uk.co.cstdev.data.FeedbackAction;
 import uk.co.cstdev.data.MealPlan;
 import uk.co.cstdev.data.MealPlanRecipe;
+import uk.co.cstdev.data.MealPlanRecipeRepository;
 import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.User;
 import uk.co.cstdev.data.UserRecipeInteraction;
@@ -31,6 +32,9 @@ import uk.co.cstdev.service.FeedbackService;
 
 @QuarkusTest
 public class ShoppingListResourceTest {
+
+    @Inject
+    MealPlanRecipeRepository mealPlanRecipeRepository;
 
     @Inject
     FeedbackService feedbackService;
@@ -438,6 +442,9 @@ public class ShoppingListResourceTest {
         // Submitting the same ACCEPTED feedback twice must return 200 both times
         // (not 500 from a unique constraint violation) and the recipe appears once.
         Recipe recipe = persistRecipe("Double Accept Recipe", new IngredientSpec("flour", 200f, "g"));
+        // The feedback endpoint now requires a live meal_plan_recipes row —
+        // simulate it having been offered into this plan first.
+        mealPlanRecipeRepository.claim(mealPlan.id, recipe.id, "OFFERED");
 
         given()
                 .contentType(jakarta.ws.rs.core.MediaType.APPLICATION_JSON)
