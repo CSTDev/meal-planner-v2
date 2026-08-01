@@ -65,7 +65,7 @@ describe('MealPlanView shopping list integration', () => {
 
     it('fetches and displays the shopping list when the button is clicked', async () => {
         const user = userEvent.setup();
-        (mealPlansApi.recordFeedback as jest.Mock).mockResolvedValue(undefined);
+        (mealPlansApi.recordFeedback as jest.Mock).mockResolvedValue({ recipe: recipe1, status: 'ACCEPTED' });
         (mealPlansApi.getShoppingList as jest.Mock).mockResolvedValue({
             ingredients: [
                 {
@@ -103,7 +103,7 @@ describe('MealPlanView shopping list integration', () => {
 
     it('shows a print button in the shopping list panel that calls window.print', async () => {
         const user = userEvent.setup();
-        (mealPlansApi.recordFeedback as jest.Mock).mockResolvedValue(undefined);
+        (mealPlansApi.recordFeedback as jest.Mock).mockResolvedValue({ recipe: recipe1, status: 'ACCEPTED' });
         (mealPlansApi.getShoppingList as jest.Mock).mockResolvedValue({ ingredients: [] });
 
         render(
@@ -131,7 +131,7 @@ describe('MealPlanView shopping list integration', () => {
 describe('MealPlanView acceptance state', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        (mealPlansApi.recordFeedback as jest.Mock).mockResolvedValue(undefined);
+        (mealPlansApi.recordFeedback as jest.Mock).mockResolvedValue({ recipe: recipe1, status: 'ACCEPTED' });
     });
 
     it('clicking Accept renders the accepted state for that card and updates the count', async () => {
@@ -256,6 +256,7 @@ describe('MealPlanView acceptance state', () => {
     it('Choose Different renders the replacement in the accepted state', async () => {
         const user = userEvent.setup();
         (recipesApi.searchRecipes as jest.Mock).mockResolvedValue([recipe3]);
+        (mealPlansApi.recordFeedback as jest.Mock).mockResolvedValue({ recipe: recipe3, status: 'ACCEPTED' });
 
         // StatefulWrapper so onMealPlanUpdated actually re-renders with the new recipe
         render(<StatefulMealPlanView initialMealPlan={{ ...mockMealPlan, recipes: [recipe1] }} />);
@@ -280,13 +281,14 @@ describe('MealPlanView acceptance state', () => {
             expect(screen.getByText(/accepted ✓/i)).toBeInTheDocument();
         });
 
-        // recordFeedback called with accepted for French Toast
-        expect(mealPlansApi.recordFeedback).toHaveBeenCalledWith('plan-1', 'recipe-3', 'accepted');
+        // A single atomic call: reject the old recipe, replace with the new one
+        expect(mealPlansApi.recordFeedback).toHaveBeenCalledWith('plan-1', 'recipe-1', 'rejected', 'recipe-3');
+        expect(mealPlansApi.recordFeedback).toHaveBeenCalledTimes(1);
     });
 
-    it('random Replace renders the replacement as proposed (not accepted)', async () => {
+    it('random Replace (plain reject) renders the replacement from the feedback response as proposed (not accepted)', async () => {
         const user = userEvent.setup();
-        (mealPlansApi.getMealPlanRecommendations as jest.Mock).mockResolvedValue([recipe3]);
+        (mealPlansApi.recordFeedback as jest.Mock).mockResolvedValue({ recipe: recipe3, status: 'OFFERED' });
 
         render(
             <MealPlanView
@@ -309,15 +311,34 @@ describe('MealPlanView acceptance state', () => {
 
         // Count stays 0 of 1
         expect(screen.getByText(/0 of 1 accepted/i)).toBeInTheDocument();
+
+        expect(mealPlansApi.recordFeedback).toHaveBeenCalledWith('plan-1', 'recipe-1', 'rejected');
     });
 
-    it('Choose Different shows an error when the accept call fails after the reject succeeds', async () => {
+    it('a plain reject that exhausts the pool removes the slot and shows the aggregate banner', async () => {
+        const user = userEvent.setup();
+        (mealPlansApi.recordFeedback as jest.Mock).mockResolvedValue({ recipe: null, status: 'REMOVED' });
+
+        render(<StatefulMealPlanView initialMealPlan={{ ...mockMealPlan, recipes: [recipe1, recipe2] }} />);
+
+        await user.click(screen.getAllByRole('button', { name: /✗ replace/i })[0]);
+
+        await waitFor(() => {
+            expect(screen.queryByText('Pancakes')).not.toBeInTheDocument();
+        });
+
+        // Only the remaining slot's recipe is shown
+        expect(screen.getByText('Waffles')).toBeInTheDocument();
+
+        // Aggregate banner: 1 of 2 recipes could be filled
+        expect(screen.getByText(/1 of 2 recipes could be filled/i)).toBeInTheDocument();
+        expect(screen.getByText(/0 of 1 accepted/i)).toBeInTheDocument();
+    });
+
+    it('Choose Different shows an error when the replace call fails', async () => {
         const user = userEvent.setup();
         (recipesApi.searchRecipes as jest.Mock).mockResolvedValue([recipe3]);
-        // First call (reject old recipe) succeeds; second call (accept new recipe) throws
-        (mealPlansApi.recordFeedback as jest.Mock)
-            .mockResolvedValueOnce(undefined)
-            .mockRejectedValueOnce(new Error('network error'));
+        (mealPlansApi.recordFeedback as jest.Mock).mockRejectedValue(new Error('network error'));
 
         render(<StatefulMealPlanView initialMealPlan={{ ...mockMealPlan, recipes: [recipe1] }} />);
 
@@ -340,10 +361,11 @@ describe('MealPlanView acceptance state', () => {
     });
 
     it('error message is dismissed when the user rejects a recipe after a failed accept', async () => {
-        const user = userEvent.setup();
         (mealPlansApi.recordFeedback as jest.Mock)
             .mockRejectedValueOnce(new Error('network error'))  // first call: accept fails
-            .mockResolvedValue(undefined);                      // subsequent calls: succeed
+            .mockResolvedValue({ recipe: recipe3, status: 'OFFERED' });  // subsequent calls: succeed
+
+        const user = userEvent.setup();
 
         render(
             <MealPlanView
@@ -360,7 +382,6 @@ describe('MealPlanView acceptance state', () => {
         });
 
         // Reject recipe 2 — the error should clear
-        (mealPlansApi.getMealPlanRecommendations as jest.Mock).mockResolvedValue([recipe3]);
         await user.click(screen.getAllByRole('button', { name: /✗ replace/i })[1]);
 
         await waitFor(() => {
@@ -369,11 +390,12 @@ describe('MealPlanView acceptance state', () => {
     });
 
     it('error message is dismissed when the user chooses a different recipe after a failed accept', async () => {
-        const user = userEvent.setup();
         (mealPlansApi.recordFeedback as jest.Mock)
             .mockRejectedValueOnce(new Error('network error'))  // first call: accept fails
-            .mockResolvedValue(undefined);                      // subsequent calls: succeed
+            .mockResolvedValue({ recipe: recipe3, status: 'ACCEPTED' });  // subsequent calls: succeed
         (recipesApi.searchRecipes as jest.Mock).mockResolvedValue([recipe3]);
+
+        const user = userEvent.setup();
 
         render(<StatefulMealPlanView initialMealPlan={{ ...mockMealPlan, recipes: [recipe1] }} />);
 
@@ -401,10 +423,11 @@ describe('MealPlanView acceptance state', () => {
         });
     });
 
-    it('client dedup guard: Choose Different re-landing an already-accepted recipe fires ACCEPTED only once', async () => {
+    it('accepting a recipe then replacing a different slot with it only fires one ACCEPTED call', async () => {
         const user = userEvent.setup();
         // Search returns recipe-1 (which will already be accepted)
         (recipesApi.searchRecipes as jest.Mock).mockResolvedValue([recipe1]);
+        (mealPlansApi.recordFeedback as jest.Mock).mockResolvedValue({ recipe: recipe1, status: 'ACCEPTED' });
 
         const onMealPlanUpdated = jest.fn();
 
@@ -430,18 +453,24 @@ describe('MealPlanView acceptance state', () => {
         const searchInput = screen.getByPlaceholderText(/search for a recipe/i);
         await user.type(searchInput, 'Pancakes');
 
-        await waitFor(() => {
-            expect(screen.getByText('Pancakes')).toBeInTheDocument();
-        });
+        // "Pancakes" also appears as slot 0's already-accepted card title, so
+        // scope to the dropdown suggestion button specifically.
+        const dropdownOption = await screen.findByRole('button', { name: 'Pancakes' });
+        await user.click(dropdownOption);
 
-        await user.click(screen.getByText('Pancakes'));
-
-        // recordFeedback with 'accepted' for recipe-1 must be called exactly once
+        // The direct accept fires action 'accepted'; the replace fires action
+        // 'rejected' with a replacement_recipe_id — 'accepted' is invoked
+        // exactly once overall.
         await waitFor(() => {
             const acceptedCalls = (mealPlansApi.recordFeedback as jest.Mock).mock.calls.filter(
-                ([, recipeId, action]) => recipeId === 'recipe-1' && action === 'accepted'
+                ([, , action]) => action === 'accepted'
             );
             expect(acceptedCalls).toHaveLength(1);
         });
+        const replaceCalls = (mealPlansApi.recordFeedback as jest.Mock).mock.calls.filter(
+            ([, , action]) => action === 'rejected'
+        );
+        expect(replaceCalls).toHaveLength(1);
+        expect(replaceCalls[0]).toEqual(['plan-1', 'recipe-2', 'rejected', 'recipe-1']);
     });
 });
