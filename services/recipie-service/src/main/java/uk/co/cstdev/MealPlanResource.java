@@ -94,24 +94,6 @@ public class MealPlanResource {
                 return Response.ok(plans).build();
         }
 
-        // TODO should this be here or it a RecommendationResource?
-        @GET
-        @Path("/{id}/recommendations")
-        @Operation(summary = "Get recipe recommendations", description = "Returns recipe recommendations for a given meal plan")
-        @APIResponse(responseCode = "200", description = "List of recommended recipes")
-        @APIResponse(responseCode = "401", description = "Unauthorized")
-        public Response getMealPlanRecommendations(@PathParam("id") String id,
-                        @QueryParam("num_recipes") int numRecipes) {
-                String userId = jwt.getSubject();
-                LOGGER.infof("Fetching %d recommendations for user=%s meal_plan_id=%s", numRecipes, userId, id);
-                List<Recipe> recommendations = recipeService.getRecommendations(numRecipes, id,
-                                UUID.fromString(userId));
-                List<RecipeDTO> dtos = recommendations.stream()
-                                .map(RecipeDTO::from)
-                                .toList();
-                return Response.ok(dtos).build();
-        }
-
         // TODO should this be here or it a FeedbackResource?
         @POST
         @Path("/{mealPlanId}/feedback")

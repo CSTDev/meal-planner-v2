@@ -47,10 +47,6 @@ public class RecipeService {
         return listRecipesTimer.record(() -> recipeRepository.findByUserId(userId));
     }
 
-    public List<Recipe> getRecommendations(int numRecipes, String mealPlanId, UUID userId) {
-        return recipeRepository.findRecommendations(numRecipes, UUID.fromString(mealPlanId), userId);
-    }
-
     public List<Recipe> searchRecipes(String q, String mealPlanId, UUID userId) {
         if (q == null || q.isBlank()) {
             return List.of();
