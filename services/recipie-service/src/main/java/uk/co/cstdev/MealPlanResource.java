@@ -210,8 +210,7 @@ public class MealPlanResource {
                         return Response.status(Response.Status.FORBIDDEN).build();
                 }
 
-                ShoppingListResponse response = shoppingListService.buildShoppingList(mealPlan.id,
-                                UUID.fromString(userId));
+                ShoppingListResponse response = shoppingListService.buildShoppingList(mealPlan.id);
                 return Response.ok(response).build();
         }
 

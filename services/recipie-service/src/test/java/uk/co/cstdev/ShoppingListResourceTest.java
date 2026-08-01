@@ -28,16 +28,12 @@ import uk.co.cstdev.data.MealPlanRecipeRepository;
 import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.User;
 import uk.co.cstdev.data.UserRecipeInteraction;
-import uk.co.cstdev.service.FeedbackService;
 
 @QuarkusTest
 public class ShoppingListResourceTest {
 
     @Inject
     MealPlanRecipeRepository mealPlanRecipeRepository;
-
-    @Inject
-    FeedbackService feedbackService;
 
     public static final String USER_ID_STRING = "223e4567-e89b-12d3-a456-426614174111";
     public static final UUID USER_ID = UUID.fromString(USER_ID_STRING);
@@ -89,11 +85,13 @@ public class ShoppingListResourceTest {
     }
 
     private void accept(Recipe recipe) {
-        feedbackService.processFeedback(USER_ID, recipe.id, mealPlan.id, FeedbackAction.ACCEPTED);
+        if (!mealPlanRecipeRepository.claim(mealPlan.id, recipe.id, "ACCEPTED")) {
+            mealPlanRecipeRepository.updateStatus(mealPlan.id, recipe.id, "ACCEPTED");
+        }
     }
 
     private void reject(Recipe recipe) {
-        feedbackService.processFeedback(USER_ID, recipe.id, mealPlan.id, FeedbackAction.REJECTED);
+        mealPlanRecipeRepository.deleteByPlanAndRecipe(mealPlan.id, recipe.id);
     }
 
     @SuppressWarnings("unchecked")
