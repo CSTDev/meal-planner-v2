@@ -1,14 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { createMealPlan, getMealPlanRecommendations } from '@/lib/api/mealPlans';
-import { MealPlan } from '@/types/recipe';
+import { useRouter } from 'next/navigation';
+import { createMealPlan } from '@/lib/api/mealPlans';
 
-interface MealPlanGeneratorProps {
-    onMealPlanCreated: (mealPlan: MealPlan) => void;
-}
-
-export default function MealPlanGenerator({ onMealPlanCreated }: MealPlanGeneratorProps) {
+export default function MealPlanGenerator() {
+    const router = useRouter();
     const [numDays, setNumDays] = useState(7);
     const [recipeSource, setRecipeSource] = useState<'own' | 'all' | 'shared'>('own');
     const [isLoading, setIsLoading] = useState(false);
@@ -19,22 +16,13 @@ export default function MealPlanGenerator({ onMealPlanCreated }: MealPlanGenerat
         setError(null);
 
         try {
-            // Create meal plan
+            // Create the meal plan — it atomically claims its initial
+            // recipes server-side, then redirect to the plan's own page,
+            // which loads full state via GET /api/meal-plans/{id}.
             const newMealPlan = await createMealPlan(numDays, recipeSource);
-
-            // Get recommendations
-            const recommendations = await getMealPlanRecommendations(
-                newMealPlan.id,
-                numDays
-            );
-
-            onMealPlanCreated({
-                ...newMealPlan,
-                recipes: recommendations,
-            });
+            router.push(`/meal-plan/${newMealPlan.id}`);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to generate meal plan');
-        } finally {
             setIsLoading(false);
         }
     };
