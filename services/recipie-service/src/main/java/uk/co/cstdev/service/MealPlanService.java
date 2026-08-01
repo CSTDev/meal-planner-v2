@@ -11,7 +11,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import org.jboss.logging.Logger;
-import uk.co.cstdev.data.FeedbackRepository;
 import uk.co.cstdev.data.MealPlan;
 import uk.co.cstdev.data.MealPlanRecipe;
 import uk.co.cstdev.data.MealPlanRecipeRepository;
@@ -29,9 +28,6 @@ public class MealPlanService {
 
     static final int MAX_RECENT_PLANS = 10;
     static final String OFFERED = "OFFERED";
-
-    @Inject
-    FeedbackRepository feedbackRepository;
 
     @Inject
     MealPlanRecipeClaimService claimService;
@@ -56,21 +52,23 @@ public class MealPlanService {
 
     /**
      * Returns up to {@value MAX_RECENT_PLANS} of the user's most recent meal
-     * plans, newest first, excluding plans with no effectively-accepted
-     * recipes (latest-interaction-wins).
+     * plans, newest first, excluding plans with no currently-accepted
+     * recipes. Accepted counts for all of the user's plans are fetched in a
+     * single grouped query rather than one query per plan.
      */
     public List<MealPlanSummaryResponse> getRecentMealPlans(UUID userId) {
         // id is a deterministic tie-break for plans sharing the same createdAt
         List<MealPlan> plans = MealPlan.list("userId = ?1 ORDER BY createdAt DESC, id DESC", userId);
+        Map<UUID, Long> acceptedCountsByPlan = mealPlanRecipeRepository.countAcceptedByUser(userId);
 
         List<MealPlanSummaryResponse> summaries = new ArrayList<>();
         for (MealPlan plan : plans) {
-            int acceptedRecipeCount = feedbackRepository.findAcceptedInteractions(plan.id, userId).size();
+            long acceptedRecipeCount = acceptedCountsByPlan.getOrDefault(plan.id, 0L);
             if (acceptedRecipeCount == 0) {
                 continue;
             }
             summaries.add(new MealPlanSummaryResponse(plan.id.toString(), plan.createdAt,
-                    plan.recipeSource, acceptedRecipeCount));
+                    plan.recipeSource, (int) acceptedRecipeCount));
             if (summaries.size() == MAX_RECENT_PLANS) {
                 break;
             }

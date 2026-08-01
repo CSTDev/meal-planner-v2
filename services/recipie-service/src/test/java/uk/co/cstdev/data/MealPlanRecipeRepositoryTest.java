@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -190,5 +191,61 @@ public class MealPlanRecipeRepositoryTest {
         mealPlanRecipeRepository.deleteByPlanAndRecipe(mealPlan.id, recipeA.id);
 
         assertEquals(0, mealPlanRecipeRepository.listByMealPlan(mealPlan.id).size());
+    }
+
+    @Test
+    public void countAcceptedByUserGroupsCountsByPlanAndIgnoresOfferedRows() {
+        MealPlan secondPlan = MealPlan.Builder.builder()
+                .userId(user.id)
+                .recipeSource("all")
+                .status("ACTIVE")
+                .createdAt(new java.util.Date())
+                .build();
+        QuarkusTransaction.requiringNew().run(secondPlan::persistAndFlush);
+
+        mealPlanRecipeRepository.claim(mealPlan.id, recipeA.id, "ACCEPTED");
+        mealPlanRecipeRepository.claim(mealPlan.id, recipeB.id, "ACCEPTED");
+        // Merely offered, not yet decided — must not be counted.
+        mealPlanRecipeRepository.claim(mealPlan.id, recipeC.id, "OFFERED");
+        mealPlanRecipeRepository.claim(secondPlan.id, recipeA.id, "ACCEPTED");
+
+        Map<UUID, Long> counts = mealPlanRecipeRepository.countAcceptedByUser(user.id);
+
+        assertEquals(2L, counts.get(mealPlan.id));
+        assertEquals(1L, counts.get(secondPlan.id));
+    }
+
+    @Test
+    public void countAcceptedByUserOmitsPlansWithNoAcceptedRows() {
+        Map<UUID, Long> counts = mealPlanRecipeRepository.countAcceptedByUser(user.id);
+
+        assertFalse(counts.containsKey(mealPlan.id));
+    }
+
+    @Test
+    public void countAcceptedByUserExcludesOtherUsersPlans() {
+        User otherUser = User.Builder.builder()
+                .id(UUID.randomUUID())
+                .email(UUID.randomUUID() + "@test.com")
+                .name("Other User")
+                .createdAt(new java.util.Date())
+                .build();
+        MealPlan otherPlan = MealPlan.Builder.builder()
+                .userId(otherUser.id)
+                .recipeSource("all")
+                .status("ACTIVE")
+                .createdAt(new java.util.Date())
+                .build();
+        QuarkusTransaction.requiringNew().run(() -> {
+            otherUser.persistAndFlush();
+            otherPlan.persistAndFlush();
+        });
+
+        mealPlanRecipeRepository.claim(otherPlan.id, recipeA.id, "ACCEPTED");
+
+        Map<UUID, Long> counts = mealPlanRecipeRepository.countAcceptedByUser(user.id);
+
+        assertFalse(counts.containsKey(otherPlan.id));
+        // otherPlan/otherUser are cleaned up by the shared @AfterEach.
     }
 }
