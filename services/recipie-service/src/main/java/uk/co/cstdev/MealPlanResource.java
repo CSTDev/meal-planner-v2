@@ -263,7 +263,8 @@ public class MealPlanResource {
                 // meal_plan_recipes carries no timestamp, so there's no
                 // "most recently accepted" ordering to derive any more —
                 // sort by title for a stable, predictable order instead.
-                dtos.sort(Comparator.comparing(dto -> dto.title, String.CASE_INSENSITIVE_ORDER));
+                dtos.sort(Comparator.comparing(dto -> dto.title,
+                                Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)));
                 return Response.ok(dtos).build();
         }
 
