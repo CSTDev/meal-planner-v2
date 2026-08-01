@@ -31,6 +31,7 @@ import jakarta.ws.rs.core.MediaType;
 import uk.co.cstdev.data.FeedbackAction;
 import uk.co.cstdev.data.MealPlan;
 import uk.co.cstdev.data.MealPlanRecipe;
+import uk.co.cstdev.data.MealPlanRecipeRepository;
 import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.User;
@@ -52,6 +53,9 @@ public class MealPlanResourceTest {
 
         @Inject
         FeedbackService feedbackService;
+
+        @Inject
+        MealPlanRecipeRepository mealPlanRecipeRepository;
 
         @Inject
         EntityManager entityManager;
@@ -513,7 +517,7 @@ public class MealPlanResourceTest {
                                 .when()
                                 .contentType("application/json")
                                 .body("""
-                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                {"numRecipes": 0, "recipeSource": "all"}
                                                 """)
                                 .post("/api/meal-plans")
                                 .then()
@@ -547,7 +551,7 @@ public class MealPlanResourceTest {
                                 .when()
                                 .contentType("application/json")
                                 .body("""
-                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                {"numRecipes": 0, "recipeSource": "all"}
                                                 """)
                                 .post("/api/meal-plans")
                                 .then()
@@ -579,7 +583,7 @@ public class MealPlanResourceTest {
                                 .when()
                                 .contentType("application/json")
                                 .body("""
-                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                {"numRecipes": 0, "recipeSource": "all"}
                                                 """)
                                 .post("/api/meal-plans")
                                 .then()
@@ -589,6 +593,45 @@ public class MealPlanResourceTest {
                 MealPlan plan = MealPlan.findById(UUID.fromString(response.id()));
 
                 feedbackService.processFeedback(user.id, recipes.getFirst().id, plan.id, FeedbackAction.ACCEPTED);
+                mealPlanRecipeRepository.claim(plan.id, recipes.getFirst().id, "ACCEPTED");
+
+                List<RecipeDTO> results = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s/recipe-search?q=pan".formatted(response.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<RecipeDTO>>() {
+                                });
+
+                assertEquals(0, results.size());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testRecipeSearchExcludesOfferedRecipes() {
+                // The actual regression this fixes: a recipe merely offered
+                // (pending, untouched) in another slot of this plan must not
+                // be suggested again by search.
+                MealPlanResponse response = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 0, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+                MealPlan plan = MealPlan.findById(UUID.fromString(response.id()));
+
+                mealPlanRecipeRepository.claim(plan.id, recipes.getFirst().id, "OFFERED");
 
                 List<RecipeDTO> results = given()
                                 .when()
@@ -614,7 +657,7 @@ public class MealPlanResourceTest {
                                 .when()
                                 .contentType("application/json")
                                 .body("""
-                                                {"numRecipes": 5, "recipeSource": "all"}
+                                                {"numRecipes": 0, "recipeSource": "all"}
                                                 """)
                                 .post("/api/meal-plans")
                                 .then()
@@ -663,7 +706,7 @@ public class MealPlanResourceTest {
                                         .when()
                                         .contentType("application/json")
                                         .body("""
-                                                        {"numRecipes": 5, "recipeSource": "all"}
+                                                        {"numRecipes": 0, "recipeSource": "all"}
                                                         """)
                                         .post("/api/meal-plans")
                                         .then()

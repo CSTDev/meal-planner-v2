@@ -18,16 +18,19 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
         return list("scrapedByUserId", userId);
     }
 
+    /**
+     * Excludes recipes currently present in meal_plan_recipes for this
+     * plan — offered or accepted — so a user can't search up and pick a
+     * recipe already pending elsewhere in the same plan.
+     */
     public List<Recipe> searchByTitle(String q, UUID mealPlanId, UUID userId) {
         String sql = """
                 SELECT r.*
                 FROM recipes r
                 WHERE r.title ILIKE '%' || :q || '%'
                 AND r.id NOT IN (
-                    SELECT recipe_id FROM user_recipe_interactions
-                    WHERE interaction_type = :acceptedType
-                    AND meal_plan_id = :meal_plan_id
-                    AND user_id = :user_id
+                    SELECT recipe_id FROM meal_plan_recipes
+                    WHERE meal_plan_id = :meal_plan_id
                 )
                 ORDER BY r.title ASC
                 LIMIT 10
@@ -36,8 +39,6 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
         return em.createNativeQuery(sql, Recipe.class)
                 .setParameter("q", q)
                 .setParameter("meal_plan_id", mealPlanId)
-                .setParameter("user_id", userId)
-                .setParameter("acceptedType", FeedbackAction.ACCEPTED.name())
                 .getResultList();
     }
 
