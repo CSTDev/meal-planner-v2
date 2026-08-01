@@ -28,6 +28,7 @@ import jakarta.transaction.Transactional;
 import jakarta.ws.rs.core.MediaType;
 import uk.co.cstdev.data.FeedbackAction;
 import uk.co.cstdev.data.MealPlan;
+import uk.co.cstdev.data.MealPlanRecipe;
 import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.User;
@@ -66,6 +67,7 @@ public class MealPlanResourceTest {
                                 Recipe.Builder.recipe().title("French Toast").servings(2).build());
 
                 QuarkusTransaction.requiringNew().run(() -> {
+                        MealPlanRecipe.deleteAll();
                         Recipe.deleteAll();
                         UserRecipeInteraction.deleteAll();
                         MealPlan.deleteAll();
@@ -80,6 +82,8 @@ public class MealPlanResourceTest {
         @AfterAll
         public static void cleanDb() {
                 QuarkusTransaction.requiringNew().run(() -> {
+                        MealPlanRecipe.deleteAll();
+                        MealPlanRecipe.flush();
                         UserRecipeInteraction.deleteAll();
                         UserRecipeInteraction.flush();
                         MealPlan.deleteAll();
@@ -105,6 +109,7 @@ public class MealPlanResourceTest {
         @AfterEach
         @Transactional
         public void cleanUp() {
+                MealPlanRecipe.deleteAll();
                 UserRecipeInteraction.deleteAll();
                 MealPlan.deleteAll();
                 user.delete();
@@ -677,6 +682,11 @@ public class MealPlanResourceTest {
                         assertEquals("ZZSearchTest 10", results.get(9).title);
                 } finally {
                         QuarkusTransaction.requiringNew().run(() -> {
+                                // Plan creation may have claimed some of these into
+                                // meal_plan_recipes — clear those rows first so the FK
+                                // doesn't block deleting the recipes themselves.
+                                MealPlanRecipe.delete("id.recipeId in ?1",
+                                                extraRecipes.stream().map(r -> r.id).toList());
                                 extraRecipes.forEach(r -> Recipe.deleteById(r.id));
                         });
                 }

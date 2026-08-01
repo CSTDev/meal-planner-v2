@@ -5,6 +5,7 @@ import io.quarkus.test.security.TestSecurity;
 import io.quarkus.test.security.jwt.Claim;
 import io.quarkus.test.security.jwt.JwtSecurity;
 import jakarta.transaction.Transactional;
+import uk.co.cstdev.data.MealPlanRecipe;
 import uk.co.cstdev.data.Recipe;
 
 import org.junit.jupiter.api.AfterEach;
@@ -25,12 +26,14 @@ class RecipeResourceTest {
     @BeforeEach
     @Transactional
     void setup() {
+        MealPlanRecipe.deleteAll();
         Recipe.deleteAll();
     }
 
     @AfterEach
     @Transactional
     void cleanup() {
+        MealPlanRecipe.deleteAll();
         Recipe.deleteAll();
     }
 

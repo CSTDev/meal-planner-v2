@@ -23,6 +23,7 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import uk.co.cstdev.data.FeedbackAction;
 import uk.co.cstdev.data.MealPlan;
+import uk.co.cstdev.data.MealPlanRecipe;
 import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.User;
 import uk.co.cstdev.data.UserRecipeInteraction;
@@ -63,6 +64,7 @@ public class ShoppingListResourceTest {
     @AfterEach
     @Transactional
     public void cleanUp() {
+        MealPlanRecipe.deleteAll();
         UserRecipeInteraction.deleteAll();
         MealPlan.deleteAll();
         Recipe.deleteAll();

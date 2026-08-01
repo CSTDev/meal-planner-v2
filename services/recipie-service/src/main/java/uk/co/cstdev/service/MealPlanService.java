@@ -17,15 +17,26 @@ import uk.co.cstdev.data.mealplan.MealPlanSummaryResponse;
 public class MealPlanService {
 
     static final int MAX_RECENT_PLANS = 10;
+    static final String OFFERED = "OFFERED";
 
     @Inject
     FeedbackRepository feedbackRepository;
 
+    @Inject
+    MealPlanRecipeClaimService claimService;
+
     @Transactional
     public MealPlan createMealPlan(MealPlanRequest request, String userId) {
-        MealPlan mealPlan = MealPlan.Builder.builder().userId(UUID.fromString(userId)).createdAt(new Date())
+        UUID userUuid = UUID.fromString(userId);
+        MealPlan mealPlan = MealPlan.Builder.builder().userId(userUuid).createdAt(new Date())
                 .recipeSource(request.recipeSource()).status("ACTIVE").build();
         mealPlan.persistAndFlush();
+
+        // Claim the plan's initial recipes in the same request — the client
+        // always loads full state via GET /api/meal-plans/{id} afterwards,
+        // whether right after creation or after a refresh.
+        claimService.claimNew(mealPlan.id, userUuid, request.numRecipes(), OFFERED);
+
         return mealPlan;
     }
 
