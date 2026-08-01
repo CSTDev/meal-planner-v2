@@ -62,7 +62,16 @@ public class FeedbackService {
 
     private FeedbackResponse accept(UUID userId, UUID mealPlanId, UUID recipeId) {
         feedbackRepository.saveFeedback(userId, recipeId, mealPlanId, FeedbackAction.ACCEPTED);
-        mealPlanRecipeRepository.updateStatus(mealPlanId, recipeId, MealPlanRecipeStatus.ACCEPTED.name());
+        boolean updated = mealPlanRecipeRepository.updateStatus(mealPlanId, recipeId,
+                MealPlanRecipeStatus.ACCEPTED.name());
+        if (!updated) {
+            // Backstop: the row existed at the lookup in submitFeedback but
+            // is gone by the time we write — e.g. a concurrent reject
+            // deleted it (pool exhaustion). Must not silently report 200
+            // ACCEPTED with no live row behind it.
+            throw new StaleFeedbackException(
+                    "No pending/offered row for meal plan %s, recipe %s".formatted(mealPlanId, recipeId));
+        }
         return new FeedbackResponse(RecipeDTO.from((Recipe) Recipe.findById(recipeId)),
                 MealPlanRecipeStatus.ACCEPTED.name());
     }
