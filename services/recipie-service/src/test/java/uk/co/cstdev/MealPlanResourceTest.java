@@ -33,6 +33,7 @@ import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.User;
 import uk.co.cstdev.data.UserRecipeInteraction;
+import uk.co.cstdev.data.mealplan.MealPlanFullResponse;
 import uk.co.cstdev.data.mealplan.MealPlanResponse;
 import uk.co.cstdev.data.mealplan.MealPlanSummaryResponse;
 import uk.co.cstdev.service.FeedbackService;
@@ -968,6 +969,76 @@ public class MealPlanResourceTest {
         }
 
         // End List Meal Plans Tests
+
+        // Get Meal Plan Full State Tests
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testGetMealPlanReturnsFullCurrentState() {
+                MealPlanResponse createResponse = given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 2, "recipeSource": "all"}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanResponse.class);
+
+                MealPlanFullResponse fullState = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s".formatted(createResponse.id()))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(MealPlanFullResponse.class);
+
+                assertEquals(createResponse.id(), fullState.id());
+                assertEquals(2, fullState.recipes().size());
+                fullState.recipes().forEach(r -> assertEquals("OFFERED", r.status()));
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testGetMealPlanUnknownPlanReturns404() {
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s".formatted(UUID.randomUUID()))
+                                .then()
+                                .statusCode(404);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testGetMealPlanOwnedByOtherUserReturns403() {
+                User secondUser = createSecondUser();
+                MealPlan otherPlan = createMealPlanForUser(secondUser.id);
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .get("/api/meal-plans/%s".formatted(otherPlan.id))
+                                .then()
+                                .statusCode(403);
+        }
+
+        // End Get Meal Plan Full State Tests
 
         // Accepted Recipes Tests
 

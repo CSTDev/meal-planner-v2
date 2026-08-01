@@ -170,6 +170,34 @@ public class MealPlanResource {
         }
 
         @GET
+        @Path("/{id}")
+        @Operation(summary = "Get a meal plan's full current state", description = "Returns every recipe currently offered or accepted in this meal plan, with its status")
+        @APIResponse(responseCode = "200", description = "Meal plan state")
+        @APIResponse(responseCode = "401", description = "Unauthorized")
+        @APIResponse(responseCode = "403", description = "Meal plan does not belong to the authenticated user")
+        @APIResponse(responseCode = "404", description = "Meal plan not found")
+        public Response getMealPlan(@PathParam("id") String id) {
+                String userId = jwt.getSubject();
+
+                MealPlan mealPlan;
+                try {
+                        mealPlan = MealPlan.findById(UUID.fromString(id));
+                } catch (IllegalArgumentException e) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan == null) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan.userId == null || !mealPlan.userId.toString().equals(userId)) {
+                        return Response.status(Response.Status.FORBIDDEN).build();
+                }
+
+                return Response.ok(mealPlanService.getMealPlanState(mealPlan)).build();
+        }
+
+        @GET
         @Path("/{id}/shopping-list")
         @Operation(summary = "Get shopping list for a meal plan", description = "Aggregates ingredients across all accepted recipes in the meal plan")
         @APIResponse(responseCode = "200", description = "Aggregated shopping list")
