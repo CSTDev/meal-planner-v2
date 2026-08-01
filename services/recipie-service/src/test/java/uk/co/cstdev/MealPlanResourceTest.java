@@ -185,6 +185,27 @@ public class MealPlanResourceTest {
                 return plan;
         }
 
+        /**
+         * Puts a meal_plan_recipes row for (mealPlanId, recipeId) into
+         * ACCEPTED status, whether or not a row already exists — mirroring
+         * what the real accept/replace feedback flow does to the live
+         * table.
+         */
+        void acceptRecipeInPlan(UUID mealPlanId, UUID recipeId) {
+                if (!mealPlanRecipeRepository.claim(mealPlanId, recipeId, "ACCEPTED")) {
+                        mealPlanRecipeRepository.updateStatus(mealPlanId, recipeId, "ACCEPTED");
+                }
+        }
+
+        /**
+         * Removes the meal_plan_recipes row for (mealPlanId, recipeId), if
+         * any — mirroring what the real reject flow does to the live table
+         * once no replacement is claimed for the slot.
+         */
+        void rejectRecipeInPlan(UUID mealPlanId, UUID recipeId) {
+                mealPlanRecipeRepository.deleteByPlanAndRecipe(mealPlanId, recipeId);
+        }
+
         // Recipe Search Tests
 
         @Test
@@ -536,8 +557,7 @@ public class MealPlanResourceTest {
                 for (int i = 0; i < 12; i++) {
                         MealPlan plan = createMealPlanForUser(USER_ID,
                                         new java.util.Date(now - i * 60_000L));
-                        feedbackService.processFeedback(USER_ID, recipes.getFirst().id, plan.id,
-                                        FeedbackAction.ACCEPTED);
+                        acceptRecipeInPlan(plan.id, recipes.getFirst().id);
                         plans.add(plan);
                 }
 
@@ -567,20 +587,17 @@ public class MealPlanResourceTest {
         public void testListMealPlansExcludesPlansWithZeroAcceptedRecipes() {
                 long now = System.currentTimeMillis();
                 MealPlan planWithAccepted = createMealPlanForUser(USER_ID, new java.util.Date(now));
-                feedbackService.processFeedback(USER_ID, recipes.getFirst().id, planWithAccepted.id,
-                                FeedbackAction.ACCEPTED);
+                acceptRecipeInPlan(planWithAccepted.id, recipes.getFirst().id);
 
-                // Plan with no interactions at all
+                // Plan with no meal_plan_recipes rows at all
                 createMealPlanForUser(USER_ID, new java.util.Date(now - 60_000L));
 
                 // Plan whose only recipe was accepted then later rejected — its
                 // effective accepted count is 0, so it must be excluded too.
                 MealPlan acceptThenRejectPlan = createMealPlanForUser(USER_ID,
                                 new java.util.Date(now - 120_000L));
-                feedbackService.processFeedback(USER_ID, recipes.getFirst().id, acceptThenRejectPlan.id,
-                                FeedbackAction.ACCEPTED);
-                feedbackService.processFeedback(USER_ID, recipes.getFirst().id, acceptThenRejectPlan.id,
-                                FeedbackAction.REJECTED);
+                acceptRecipeInPlan(acceptThenRejectPlan.id, recipes.getFirst().id);
+                rejectRecipeInPlan(acceptThenRejectPlan.id, recipes.getFirst().id);
 
                 List<MealPlanSummaryResponse> results = given()
                                 .when()
@@ -602,17 +619,17 @@ public class MealPlanResourceTest {
                         @Claim(key = "sub", value = USER_ID_STRING),
                         @Claim(key = "email", value = "me@test.com")
         })
-        public void testListMealPlansAcceptedRecipeCountUsesLatestInteraction() {
+        public void testListMealPlansAcceptedRecipeCountReflectsCurrentStatusOnly() {
                 MealPlan plan = createMealPlanForUser(USER_ID);
 
                 // Accepted, stays accepted — counts.
-                feedbackService.processFeedback(USER_ID, recipes.get(0).id, plan.id, FeedbackAction.ACCEPTED);
+                acceptRecipeInPlan(plan.id, recipes.get(0).id);
                 // Accepted then later rejected — must NOT count.
-                feedbackService.processFeedback(USER_ID, recipes.get(1).id, plan.id, FeedbackAction.ACCEPTED);
-                feedbackService.processFeedback(USER_ID, recipes.get(1).id, plan.id, FeedbackAction.REJECTED);
-                // Rejected then later accepted — counts.
-                feedbackService.processFeedback(USER_ID, recipes.get(2).id, plan.id, FeedbackAction.REJECTED);
-                feedbackService.processFeedback(USER_ID, recipes.get(2).id, plan.id, FeedbackAction.ACCEPTED);
+                acceptRecipeInPlan(plan.id, recipes.get(1).id);
+                rejectRecipeInPlan(plan.id, recipes.get(1).id);
+                // Rejected (never offered, so a no-op) then later accepted — counts.
+                rejectRecipeInPlan(plan.id, recipes.get(2).id);
+                acceptRecipeInPlan(plan.id, recipes.get(2).id);
 
                 List<MealPlanSummaryResponse> results = given()
                                 .when()
@@ -639,8 +656,7 @@ public class MealPlanResourceTest {
         public void testListMealPlansExcludesOtherUsersPlans() {
                 User secondUser = createSecondUser();
                 MealPlan otherPlan = createMealPlanForUser(secondUser.id);
-                feedbackService.processFeedback(secondUser.id, recipes.getFirst().id, otherPlan.id,
-                                FeedbackAction.ACCEPTED);
+                acceptRecipeInPlan(otherPlan.id, recipes.getFirst().id);
 
                 List<MealPlanSummaryResponse> results = given()
                                 .when()
@@ -668,8 +684,7 @@ public class MealPlanResourceTest {
                 List<MealPlan> plans = new ArrayList<>();
                 for (int i = 0; i < 3; i++) {
                         MealPlan plan = createMealPlanForUser(USER_ID, sameInstant);
-                        feedbackService.processFeedback(USER_ID, recipes.getFirst().id, plan.id,
-                                        FeedbackAction.ACCEPTED);
+                        acceptRecipeInPlan(plan.id, recipes.getFirst().id);
                         plans.add(plan);
                 }
 
@@ -1074,13 +1089,14 @@ public class MealPlanResourceTest {
                         @Claim(key = "sub", value = USER_ID_STRING),
                         @Claim(key = "email", value = "me@test.com")
         })
-        public void testAcceptedRecipesOrderedMostRecentlyAcceptedFirst() {
+        public void testAcceptedRecipesOrderedByTitle() {
                 MealPlan plan = createMealPlanForUser(USER_ID);
 
-                // Accept in a known order: first, then second, then third.
-                feedbackService.processFeedback(USER_ID, recipes.get(0).id, plan.id, FeedbackAction.ACCEPTED);
-                feedbackService.processFeedback(USER_ID, recipes.get(1).id, plan.id, FeedbackAction.ACCEPTED);
-                feedbackService.processFeedback(USER_ID, recipes.get(2).id, plan.id, FeedbackAction.ACCEPTED);
+                // Accept in a deliberately non-alphabetical order: Pancakes,
+                // Waffles, French Toast.
+                acceptRecipeInPlan(plan.id, recipes.get(0).id);
+                acceptRecipeInPlan(plan.id, recipes.get(1).id);
+                acceptRecipeInPlan(plan.id, recipes.get(2).id);
 
                 List<RecipeDTO> results = given()
                                 .when()
@@ -1093,10 +1109,9 @@ public class MealPlanResourceTest {
                                 });
 
                 assertEquals(3, results.size());
-                assertEquals(recipes.get(2).id, results.get(0).id,
-                                "Most recently accepted recipe should come first");
-                assertEquals(recipes.get(1).id, results.get(1).id);
-                assertEquals(recipes.get(0).id, results.get(2).id);
+                assertEquals(List.of("French Toast", "Pancakes", "Waffles"),
+                                results.stream().map(recipe -> recipe.title).toList(),
+                                "Accepted recipes should be ordered alphabetically by title");
         }
 
         @Test
@@ -1108,10 +1123,10 @@ public class MealPlanResourceTest {
         public void testAcceptedRecipesExcludesAcceptThenReject() {
                 MealPlan plan = createMealPlanForUser(USER_ID);
 
-                feedbackService.processFeedback(USER_ID, recipes.get(0).id, plan.id, FeedbackAction.ACCEPTED);
+                acceptRecipeInPlan(plan.id, recipes.get(0).id);
                 // Accepted then later rejected — must not be listed.
-                feedbackService.processFeedback(USER_ID, recipes.get(1).id, plan.id, FeedbackAction.ACCEPTED);
-                feedbackService.processFeedback(USER_ID, recipes.get(1).id, plan.id, FeedbackAction.REJECTED);
+                acceptRecipeInPlan(plan.id, recipes.get(1).id);
+                rejectRecipeInPlan(plan.id, recipes.get(1).id);
 
                 List<RecipeDTO> results = given()
                                 .when()

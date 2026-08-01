@@ -9,10 +9,9 @@ import java.util.UUID;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import uk.co.cstdev.data.FeedbackRepository;
 import uk.co.cstdev.data.Ingredient;
+import uk.co.cstdev.data.MealPlanRecipeRepository;
 import uk.co.cstdev.data.Recipe;
-import uk.co.cstdev.data.UserRecipeInteraction;
 import uk.co.cstdev.data.mealplan.ShoppingListAmount;
 import uk.co.cstdev.data.mealplan.ShoppingListBreakdownEntry;
 import uk.co.cstdev.data.mealplan.ShoppingListIngredient;
@@ -22,20 +21,16 @@ import uk.co.cstdev.data.mealplan.ShoppingListResponse;
 public class ShoppingListService {
 
     @Inject
-    FeedbackRepository feedbackRepository;
+    MealPlanRecipeRepository mealPlanRecipeRepository;
 
-    public ShoppingListResponse buildShoppingList(UUID mealPlanId, UUID userId) {
-        // Latest-interaction-wins: include a recipe only when its most-recent
-        // interaction for this (user, recipe, meal_plan) is ACCEPTED, i.e. no
-        // REJECTED row exists that is newer than the ACCEPTED row.
-        List<UserRecipeInteraction> acceptedInteractions =
-                feedbackRepository.findAcceptedInteractions(mealPlanId, userId);
+    public ShoppingListResponse buildShoppingList(UUID mealPlanId) {
+        List<UUID> acceptedRecipeIds = mealPlanRecipeRepository.listAcceptedRecipeIds(mealPlanId);
 
         // Preserve first-seen order of normalised ingredient names.
         Map<String, List<IngredientContribution>> contributionsByName = new LinkedHashMap<>();
 
-        for (UserRecipeInteraction interaction : acceptedInteractions) {
-            Recipe recipe = Recipe.findById(interaction.recipeId);
+        for (UUID recipeId : acceptedRecipeIds) {
+            Recipe recipe = Recipe.findById(recipeId);
             if (recipe == null || recipe.ingredients == null) {
                 continue;
             }

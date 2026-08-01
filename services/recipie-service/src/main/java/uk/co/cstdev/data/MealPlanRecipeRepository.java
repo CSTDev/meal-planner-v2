@@ -1,6 +1,8 @@
 package uk.co.cstdev.data;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,6 +21,42 @@ public class MealPlanRecipeRepository implements PanacheRepositoryBase<MealPlanR
 
     public List<MealPlanRecipe> listByMealPlan(UUID mealPlanId) {
         return list("id.mealPlanId", mealPlanId);
+    }
+
+    /**
+     * Recipe ids currently ACCEPTED into this plan. The result has no
+     * inherent order — callers needing an order must sort explicitly.
+     */
+    public List<UUID> listAcceptedRecipeIds(UUID mealPlanId) {
+        return list("id.mealPlanId = ?1 and status = ?2", mealPlanId, MealPlanRecipeStatus.ACCEPTED.name())
+                .stream()
+                .map(row -> row.id.recipeId)
+                .toList();
+    }
+
+    /**
+     * Counts ACCEPTED rows per meal plan, scoped to the given user's plans,
+     * in a single grouped query — avoiding the N+1 of counting one plan at
+     * a time. Plans with zero accepted recipes are simply absent from the
+     * result rather than mapped to zero.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<UUID, Long> countAcceptedByUser(UUID userId) {
+        List<Object[]> rows = getEntityManager().createNativeQuery("""
+                SELECT mpr.meal_plan_id, COUNT(*)
+                FROM meal_plan_recipes mpr
+                JOIN meal_plans mp ON mp.id = mpr.meal_plan_id
+                WHERE mpr.status = 'ACCEPTED' AND mp.user_id = ?1
+                GROUP BY mpr.meal_plan_id
+                """)
+                .setParameter(1, userId)
+                .getResultList();
+
+        Map<UUID, Long> countsByPlan = new HashMap<>();
+        for (Object[] row : rows) {
+            countsByPlan.put((UUID) row[0], ((Number) row[1]).longValue());
+        }
+        return countsByPlan;
     }
 
     /**
