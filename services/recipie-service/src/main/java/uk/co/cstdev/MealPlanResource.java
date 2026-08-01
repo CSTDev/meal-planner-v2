@@ -25,12 +25,11 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import uk.co.cstdev.data.FeedbackRepository;
 import uk.co.cstdev.data.MealPlan;
+import uk.co.cstdev.data.MealPlanRecipeRepository;
 import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.RecipeFeedback;
-import uk.co.cstdev.data.UserRecipeInteraction;
 import uk.co.cstdev.data.mealplan.FeedbackResponse;
 import uk.co.cstdev.data.mealplan.MealPlanRequest;
 import uk.co.cstdev.data.mealplan.MealPlanResponse;
@@ -64,7 +63,7 @@ public class MealPlanResource {
         ShoppingListService shoppingListService;
 
         @Inject
-        FeedbackRepository feedbackRepository;
+        MealPlanRecipeRepository mealPlanRecipeRepository;
 
         @Inject
         JsonWebToken jwt;
@@ -218,7 +217,7 @@ public class MealPlanResource {
 
         @GET
         @Path("/{id}/accepted-recipes")
-        @Operation(summary = "Get accepted recipes for a meal plan", description = "Returns the recipes currently accepted into the meal plan, most recently accepted first")
+        @Operation(summary = "Get accepted recipes for a meal plan", description = "Returns the recipes currently accepted into the meal plan, sorted by title")
         @APIResponse(responseCode = "200", description = "List of accepted recipes")
         @APIResponse(responseCode = "401", description = "Unauthorized")
         @APIResponse(responseCode = "403", description = "Meal plan does not belong to the authenticated user")
@@ -241,19 +240,9 @@ public class MealPlanResource {
                         return Response.status(Response.Status.FORBIDDEN).build();
                 }
 
-                // The shared query has no inherent order — sort most recently
-                // accepted first for the history detail view.
-                List<UserRecipeInteraction> interactions = feedbackRepository
-                                .findAcceptedInteractions(mealPlan.id, UUID.fromString(userId))
-                                .stream()
-                                .sorted(Comparator.comparing(
-                                                (UserRecipeInteraction i) -> i.interactionAt).reversed())
-                                .toList();
+                List<UUID> recipeIds = mealPlanRecipeRepository.listAcceptedRecipeIds(mealPlan.id);
 
-                // Batch the recipe lookup rather than one findById per interaction
-                List<UUID> recipeIds = interactions.stream()
-                                .map(interaction -> interaction.recipeId)
-                                .toList();
+                // Batch the recipe lookup rather than one findById per recipe id
                 Map<UUID, Recipe> recipesById = recipeIds.isEmpty()
                                 ? Map.of()
                                 : Recipe.<Recipe>list("id in ?1", recipeIds)
@@ -262,16 +251,20 @@ public class MealPlanResource {
                                                                 recipe -> recipe));
 
                 List<RecipeDTO> dtos = new ArrayList<>();
-                for (UserRecipeInteraction interaction : interactions) {
-                        Recipe recipe = recipesById.get(interaction.recipeId);
+                for (UUID recipeId : recipeIds) {
+                        Recipe recipe = recipesById.get(recipeId);
                         if (recipe == null) {
                                 // Should be impossible while the recipe_id FK holds
-                                LOGGER.warnf("Accepted interaction references missing recipe %s in meal plan %s",
-                                                interaction.recipeId, mealPlan.id);
+                                LOGGER.warnf("meal_plan_recipes row references missing recipe %s in meal plan %s",
+                                                recipeId, mealPlan.id);
                                 continue;
                         }
                         dtos.add(RecipeDTO.from(recipe));
                 }
+                // meal_plan_recipes carries no timestamp, so there's no
+                // "most recently accepted" ordering to derive any more —
+                // sort by title for a stable, predictable order instead.
+                dtos.sort(Comparator.comparing(dto -> dto.title, String.CASE_INSENSITIVE_ORDER));
                 return Response.ok(dtos).build();
         }
 

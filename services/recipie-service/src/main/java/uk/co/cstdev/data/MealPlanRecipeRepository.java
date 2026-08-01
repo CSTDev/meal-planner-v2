@@ -24,6 +24,17 @@ public class MealPlanRecipeRepository implements PanacheRepositoryBase<MealPlanR
     }
 
     /**
+     * Recipe ids currently ACCEPTED into this plan. The result has no
+     * inherent order — callers needing an order must sort explicitly.
+     */
+    public List<UUID> listAcceptedRecipeIds(UUID mealPlanId) {
+        return list("id.mealPlanId = ?1 and status = ?2", mealPlanId, MealPlanRecipeStatus.ACCEPTED.name())
+                .stream()
+                .map(row -> row.id.recipeId)
+                .toList();
+    }
+
+    /**
      * Counts ACCEPTED rows per meal plan, scoped to the given user's plans,
      * in a single grouped query — avoiding the N+1 of counting one plan at
      * a time. Plans with zero accepted recipes are simply absent from the

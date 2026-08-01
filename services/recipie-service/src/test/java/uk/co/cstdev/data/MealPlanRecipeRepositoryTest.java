@@ -97,6 +97,25 @@ public class MealPlanRecipeRepositoryTest {
     }
 
     @Test
+    public void listAcceptedRecipeIdsReturnsOnlyAcceptedRows() {
+        mealPlanRecipeRepository.claim(mealPlan.id, recipeA.id, "ACCEPTED");
+        mealPlanRecipeRepository.claim(mealPlan.id, recipeB.id, "OFFERED");
+        mealPlanRecipeRepository.claim(mealPlan.id, recipeC.id, "ACCEPTED");
+
+        List<UUID> acceptedRecipeIds = mealPlanRecipeRepository.listAcceptedRecipeIds(mealPlan.id);
+
+        assertEquals(List.of(recipeA.id, recipeC.id).stream().sorted().toList(),
+                acceptedRecipeIds.stream().sorted().toList());
+    }
+
+    @Test
+    public void listAcceptedRecipeIdsReturnsEmptyListWhenNoneAccepted() {
+        mealPlanRecipeRepository.claim(mealPlan.id, recipeA.id, "OFFERED");
+
+        assertTrue(mealPlanRecipeRepository.listAcceptedRecipeIds(mealPlan.id).isEmpty());
+    }
+
+    @Test
     public void claimInsertsANewRowAndReturnsTrue() {
         boolean claimed = mealPlanRecipeRepository.claim(mealPlan.id, recipeA.id, "OFFERED");
 

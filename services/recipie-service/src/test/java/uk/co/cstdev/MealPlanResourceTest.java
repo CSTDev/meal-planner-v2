@@ -1089,13 +1089,14 @@ public class MealPlanResourceTest {
                         @Claim(key = "sub", value = USER_ID_STRING),
                         @Claim(key = "email", value = "me@test.com")
         })
-        public void testAcceptedRecipesOrderedMostRecentlyAcceptedFirst() {
+        public void testAcceptedRecipesOrderedByTitle() {
                 MealPlan plan = createMealPlanForUser(USER_ID);
 
-                // Accept in a known order: first, then second, then third.
-                feedbackService.processFeedback(USER_ID, recipes.get(0).id, plan.id, FeedbackAction.ACCEPTED);
-                feedbackService.processFeedback(USER_ID, recipes.get(1).id, plan.id, FeedbackAction.ACCEPTED);
-                feedbackService.processFeedback(USER_ID, recipes.get(2).id, plan.id, FeedbackAction.ACCEPTED);
+                // Accept in a deliberately non-alphabetical order: Pancakes,
+                // Waffles, French Toast.
+                acceptRecipeInPlan(plan.id, recipes.get(0).id);
+                acceptRecipeInPlan(plan.id, recipes.get(1).id);
+                acceptRecipeInPlan(plan.id, recipes.get(2).id);
 
                 List<RecipeDTO> results = given()
                                 .when()
@@ -1108,10 +1109,9 @@ public class MealPlanResourceTest {
                                 });
 
                 assertEquals(3, results.size());
-                assertEquals(recipes.get(2).id, results.get(0).id,
-                                "Most recently accepted recipe should come first");
-                assertEquals(recipes.get(1).id, results.get(1).id);
-                assertEquals(recipes.get(0).id, results.get(2).id);
+                assertEquals(List.of("French Toast", "Pancakes", "Waffles"),
+                                results.stream().map(recipe -> recipe.title).toList(),
+                                "Accepted recipes should be ordered alphabetically by title");
         }
 
         @Test
@@ -1123,10 +1123,10 @@ public class MealPlanResourceTest {
         public void testAcceptedRecipesExcludesAcceptThenReject() {
                 MealPlan plan = createMealPlanForUser(USER_ID);
 
-                feedbackService.processFeedback(USER_ID, recipes.get(0).id, plan.id, FeedbackAction.ACCEPTED);
+                acceptRecipeInPlan(plan.id, recipes.get(0).id);
                 // Accepted then later rejected — must not be listed.
-                feedbackService.processFeedback(USER_ID, recipes.get(1).id, plan.id, FeedbackAction.ACCEPTED);
-                feedbackService.processFeedback(USER_ID, recipes.get(1).id, plan.id, FeedbackAction.REJECTED);
+                acceptRecipeInPlan(plan.id, recipes.get(1).id);
+                rejectRecipeInPlan(plan.id, recipes.get(1).id);
 
                 List<RecipeDTO> results = given()
                                 .when()
