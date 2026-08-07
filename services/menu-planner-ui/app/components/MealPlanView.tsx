@@ -37,6 +37,7 @@ export default function MealPlanView({
 
     const acceptedCount = acceptedRecipeIds.size;
     const totalCount = mealPlan.recipes.length;
+    const isEmpty = totalCount === 0;
 
     const handleReject = async (recipe: Recipe, index: number) => {
         setAcceptError(null);
@@ -141,12 +142,26 @@ export default function MealPlanView({
         <div className="space-y-6">
             <div className="meal-plan-main-header flex justify-between items-center">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900">
-                        Your {mealPlan.recipes.length}-Day Meal Plan
-                    </h2>
-                    <p className="text-sm text-gray-600 mt-1">
-                        {acceptedCount} of {totalCount} accepted
-                    </p>
+                    {isEmpty ? (
+                        <>
+                            <h2 className="text-2xl font-bold text-gray-900">
+                                No Recipes in This Plan
+                            </h2>
+                            <p className="text-sm text-gray-600 mt-1">
+                                This meal plan doesn&apos;t have any recipes yet. Start over to
+                                generate a new one.
+                            </p>
+                        </>
+                    ) : (
+                        <>
+                            <h2 className="text-2xl font-bold text-gray-900">
+                                Your {mealPlan.recipes.length}-Day Meal Plan
+                            </h2>
+                            <p className="text-sm text-gray-600 mt-1">
+                                {acceptedCount} of {totalCount} accepted
+                            </p>
+                        </>
+                    )}
                     {exhaustedCount > 0 && (
                         <p className="text-sm text-amber-600 mt-1" role="status">
                             {totalCount} of {originalSlotCount} recipes could be filled — ran out of
@@ -160,15 +175,17 @@ export default function MealPlanView({
                     )}
                 </div>
                 <div className="flex gap-2">
-                    <button
-                        onClick={handleViewShoppingList}
-                        disabled={acceptedCount === 0}
-                        className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {acceptedCount > 0
-                            ? `View Shopping List (${acceptedCount})`
-                            : 'View Shopping List'}
-                    </button>
+                    {!isEmpty && (
+                        <button
+                            onClick={handleViewShoppingList}
+                            disabled={acceptedCount === 0}
+                            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {acceptedCount > 0
+                                ? `View Shopping List (${acceptedCount})`
+                                : 'View Shopping List'}
+                        </button>
+                    )}
                     <button
                         onClick={onReset}
                         className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
@@ -178,38 +195,40 @@ export default function MealPlanView({
                 </div>
             </div>
 
-            <div className="recipe-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {mealPlan.recipes.map((recipe, index) => (
-                    <div key={`${recipe.id}-${index}`} className="space-y-2">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-gray-600">
-                                Day {index + 1}
-                            </span>
-                            <button
-                                onClick={() => setReplacingIndex(index)}
-                                className="text-xs text-blue-600 hover:text-blue-800"
-                            >
-                                Choose Different
-                            </button>
-                        </div>
+            {!isEmpty && (
+                <div className="recipe-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {mealPlan.recipes.map((recipe, index) => (
+                        <div key={`${recipe.id}-${index}`} className="space-y-2">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-gray-600">
+                                    Day {index + 1}
+                                </span>
+                                <button
+                                    onClick={() => setReplacingIndex(index)}
+                                    className="text-xs text-blue-600 hover:text-blue-800"
+                                >
+                                    Choose Different
+                                </button>
+                            </div>
 
-                        {replacingIndex === index ? (
-                            <RecipeSelector
-                                mealPlanId={mealPlan.id}
-                                onSelect={(recipe) => handleReplaceWithSpecific(recipe, index)}
-                                onCancel={() => setReplacingIndex(null)}
-                            />
-                        ) : (
-                            <RecipeCard
-                                recipe={recipe}
-                                isAccepted={acceptedRecipeIds.has(recipe.id)}
-                                onAccept={() => handleAccept(recipe)}
-                                onReject={() => handleReject(recipe, index)}
-                            />
-                        )}
-                    </div>
-                ))}
-            </div>
+                            {replacingIndex === index ? (
+                                <RecipeSelector
+                                    mealPlanId={mealPlan.id}
+                                    onSelect={(recipe) => handleReplaceWithSpecific(recipe, index)}
+                                    onCancel={() => setReplacingIndex(null)}
+                                />
+                            ) : (
+                                <RecipeCard
+                                    recipe={recipe}
+                                    isAccepted={acceptedRecipeIds.has(recipe.id)}
+                                    onAccept={() => handleAccept(recipe)}
+                                    onReject={() => handleReject(recipe, index)}
+                                />
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
 
             <ShoppingListOverlay
                 isOpen={isShoppingListOpen}
