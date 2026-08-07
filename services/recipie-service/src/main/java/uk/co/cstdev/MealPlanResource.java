@@ -71,8 +71,13 @@ public class MealPlanResource {
         @POST
         @Operation(summary = "Create a meal plan", description = "Creates a new meal plan for the authenticated user")
         @APIResponse(responseCode = "200", description = "Meal plan created")
+        @APIResponse(responseCode = "400", description = "numRecipes must be at least 1 and recipeSource must be present")
         @APIResponse(responseCode = "401", description = "Unauthorized")
         public Response createMealPlan(MealPlanRequest request) {
+                if (request.numRecipes() < 1 || request.recipeSource() == null || request.recipeSource().isBlank()) {
+                        return Response.status(Response.Status.BAD_REQUEST).build();
+                }
+
                 String userId = jwt.getSubject();
 
                 MealPlan mealPlan = mealPlanService.createMealPlan(request, userId);

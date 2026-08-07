@@ -156,6 +156,24 @@ public class MealPlanResourceTest {
                 assertNotNull(mealPlan);
         }
 
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testCreateMealPlanWithZeroNumRecipesAndNullRecipeSourceReturns400() {
+                given()
+                                .when()
+                                .contentType("application/json")
+                                .body("""
+                                                {"numRecipes": 0, "recipeSource": null}
+                                                """)
+                                .post("/api/meal-plans")
+                                .then()
+                                .statusCode(400);
+        }
+
         @Transactional
         User createSecondUser() {
                 User user = User.Builder.builder()
@@ -215,23 +233,16 @@ public class MealPlanResourceTest {
                         @Claim(key = "email", value = "me@test.com")
         })
         public void testRecipeSearchMatchesPartialTitleCaseInsensitive() {
-                MealPlanResponse response = given()
-                                .when()
-                                .contentType("application/json")
-                                .body("""
-                                                {"numRecipes": 0, "recipeSource": "all"}
-                                                """)
-                                .post("/api/meal-plans")
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(MealPlanResponse.class);
+                // Created directly (rather than via POST with numRecipes: 0) since
+                // the create endpoint now rejects a zero recipe count — this test
+                // is exercising search, not creation.
+                MealPlan plan = createMealPlanForUser(USER_ID);
 
                 // "PAN" (uppercase) should match "Pancakes"
                 List<RecipeDTO> results = given()
                                 .when()
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .get("/api/meal-plans/%s/recipe-search?q=PAN".formatted(response.id()))
+                                .get("/api/meal-plans/%s/recipe-search?q=PAN".formatted(plan.id))
                                 .then()
                                 .statusCode(200)
                                 .extract()
@@ -249,22 +260,12 @@ public class MealPlanResourceTest {
                         @Claim(key = "email", value = "me@test.com")
         })
         public void testRecipeSearchNoMatchReturnsEmpty() {
-                MealPlanResponse response = given()
-                                .when()
-                                .contentType("application/json")
-                                .body("""
-                                                {"numRecipes": 0, "recipeSource": "all"}
-                                                """)
-                                .post("/api/meal-plans")
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(MealPlanResponse.class);
+                MealPlan plan = createMealPlanForUser(USER_ID);
 
                 List<RecipeDTO> results = given()
                                 .when()
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .get("/api/meal-plans/%s/recipe-search?q=xyz999notexist".formatted(response.id()))
+                                .get("/api/meal-plans/%s/recipe-search?q=xyz999notexist".formatted(plan.id))
                                 .then()
                                 .statusCode(200)
                                 .extract()
@@ -281,18 +282,7 @@ public class MealPlanResourceTest {
                         @Claim(key = "email", value = "me@test.com")
         })
         public void testRecipeSearchExcludesAcceptedRecipes() {
-                MealPlanResponse response = given()
-                                .when()
-                                .contentType("application/json")
-                                .body("""
-                                                {"numRecipes": 0, "recipeSource": "all"}
-                                                """)
-                                .post("/api/meal-plans")
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(MealPlanResponse.class);
-                MealPlan plan = MealPlan.findById(UUID.fromString(response.id()));
+                MealPlan plan = createMealPlanForUser(USER_ID);
 
                 feedbackService.processFeedback(user.id, recipes.getFirst().id, plan.id, FeedbackAction.ACCEPTED);
                 mealPlanRecipeRepository.claim(plan.id, recipes.getFirst().id, "ACCEPTED");
@@ -300,7 +290,7 @@ public class MealPlanResourceTest {
                 List<RecipeDTO> results = given()
                                 .when()
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .get("/api/meal-plans/%s/recipe-search?q=pan".formatted(response.id()))
+                                .get("/api/meal-plans/%s/recipe-search?q=pan".formatted(plan.id))
                                 .then()
                                 .statusCode(200)
                                 .extract()
@@ -320,25 +310,14 @@ public class MealPlanResourceTest {
                 // The actual regression this fixes: a recipe merely offered
                 // (pending, untouched) in another slot of this plan must not
                 // be suggested again by search.
-                MealPlanResponse response = given()
-                                .when()
-                                .contentType("application/json")
-                                .body("""
-                                                {"numRecipes": 0, "recipeSource": "all"}
-                                                """)
-                                .post("/api/meal-plans")
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(MealPlanResponse.class);
-                MealPlan plan = MealPlan.findById(UUID.fromString(response.id()));
+                MealPlan plan = createMealPlanForUser(USER_ID);
 
                 mealPlanRecipeRepository.claim(plan.id, recipes.getFirst().id, "OFFERED");
 
                 List<RecipeDTO> results = given()
                                 .when()
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .get("/api/meal-plans/%s/recipe-search?q=pan".formatted(response.id()))
+                                .get("/api/meal-plans/%s/recipe-search?q=pan".formatted(plan.id))
                                 .then()
                                 .statusCode(200)
                                 .extract()
@@ -355,25 +334,14 @@ public class MealPlanResourceTest {
                         @Claim(key = "email", value = "me@test.com")
         })
         public void testRecipeSearchIncludesRejectedRecipes() {
-                MealPlanResponse response = given()
-                                .when()
-                                .contentType("application/json")
-                                .body("""
-                                                {"numRecipes": 0, "recipeSource": "all"}
-                                                """)
-                                .post("/api/meal-plans")
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(MealPlanResponse.class);
-                MealPlan plan = MealPlan.findById(UUID.fromString(response.id()));
+                MealPlan plan = createMealPlanForUser(USER_ID);
 
                 feedbackService.processFeedback(user.id, recipes.getFirst().id, plan.id, FeedbackAction.REJECTED);
 
                 List<RecipeDTO> results = given()
                                 .when()
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .get("/api/meal-plans/%s/recipe-search?q=pan".formatted(response.id()))
+                                .get("/api/meal-plans/%s/recipe-search?q=pan".formatted(plan.id))
                                 .then()
                                 .statusCode(200)
                                 .extract()
@@ -404,22 +372,12 @@ public class MealPlanResourceTest {
                 });
 
                 try {
-                        MealPlanResponse response = given()
-                                        .when()
-                                        .contentType("application/json")
-                                        .body("""
-                                                        {"numRecipes": 0, "recipeSource": "all"}
-                                                        """)
-                                        .post("/api/meal-plans")
-                                        .then()
-                                        .statusCode(200)
-                                        .extract()
-                                        .as(MealPlanResponse.class);
+                        MealPlan plan = createMealPlanForUser(USER_ID);
 
                         List<RecipeDTO> results = given()
                                         .when()
                                         .contentType(MediaType.APPLICATION_JSON)
-                                        .get("/api/meal-plans/%s/recipe-search?q=ZZSearchTest".formatted(response.id()))
+                                        .get("/api/meal-plans/%s/recipe-search?q=ZZSearchTest".formatted(plan.id))
                                         .then()
                                         .statusCode(200)
                                         .extract()
@@ -431,9 +389,8 @@ public class MealPlanResourceTest {
                         assertEquals("ZZSearchTest 10", results.get(9).title);
                 } finally {
                         QuarkusTransaction.requiringNew().run(() -> {
-                                // Plan creation may have claimed some of these into
-                                // meal_plan_recipes — clear those rows first so the FK
-                                // doesn't block deleting the recipes themselves.
+                                // Clear any meal_plan_recipes rows referencing these
+                                // recipes first so the FK doesn't block deleting them.
                                 MealPlanRecipe.delete("id.recipeId in ?1",
                                                 extraRecipes.stream().map(r -> r.id).toList());
                                 extraRecipes.forEach(r -> Recipe.deleteById(r.id));
