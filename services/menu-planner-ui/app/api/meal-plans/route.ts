@@ -68,8 +68,8 @@ export async function POST(request: NextRequest) {
                 'Authorization': `Bearer ${session.access_token}`, // ✅ Add JWT token
             },
             body: JSON.stringify({
-                num_recipes: body.num_recipes,
-                recipe_source: body.recipe_source,
+                numRecipes: body.numRecipes,
+                recipeSource: body.recipeSource,
             }),
         });
 

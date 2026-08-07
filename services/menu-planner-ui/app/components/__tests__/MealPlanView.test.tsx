@@ -474,3 +474,35 @@ describe('MealPlanView acceptance state', () => {
         expect(replaceCalls[0]).toEqual(['plan-1', 'recipe-2', 'rejected', 'recipe-1']);
     });
 });
+
+describe('MealPlanView empty plan state', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it('shows a clear empty-state message instead of "Your 0-Day Meal Plan" when there are no recipes', () => {
+        render(
+            <MealPlanView
+                mealPlan={{ ...mockMealPlan, recipes: [] }}
+                onMealPlanUpdated={jest.fn()}
+                onReset={jest.fn()}
+            />
+        );
+
+        expect(screen.queryByText(/your 0-day meal plan/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/0 of 0 accepted/i)).not.toBeInTheDocument();
+        expect(screen.getByText(/no recipes/i)).toBeInTheDocument();
+    });
+
+    it('still offers a way back to start over when the plan is empty', () => {
+        render(
+            <MealPlanView
+                mealPlan={{ ...mockMealPlan, recipes: [] }}
+                onMealPlanUpdated={jest.fn()}
+                onReset={jest.fn()}
+            />
+        );
+
+        expect(screen.getByRole('button', { name: /start over/i })).toBeInTheDocument();
+    });
+});

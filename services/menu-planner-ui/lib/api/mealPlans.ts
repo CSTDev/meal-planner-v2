@@ -85,8 +85,8 @@ export async function createMealPlan(
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            num_recipes: numDays,
-            recipe_source: recipeSource,
+            numRecipes: numDays,
+            recipeSource: recipeSource,
         }),
     });
 
