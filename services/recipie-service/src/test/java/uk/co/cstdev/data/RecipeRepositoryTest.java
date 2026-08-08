@@ -110,7 +110,7 @@ public class RecipeRepositoryTest {
     }
 
     @Test
-    public void excludesRecipesWithAnyInteractionInTheLast90DaysAcrossAnyPlan() {
+    public void excludesRecipesAcceptedWithin90DaysAcrossAnyPlan() {
         MealPlan otherPlan = MealPlan.Builder.builder()
                 .userId(user.id).recipeSource("all").status("ACTIVE").createdAt(new java.util.Date()).build();
         QuarkusTransaction.requiringNew().run(otherPlan::persistAndFlush);
@@ -122,7 +122,7 @@ public class RecipeRepositoryTest {
     }
 
     @Test
-    public void includesRecipesWithInteractionsOlderThan90Days() {
+    public void includesRecipesAcceptedMoreThan90DaysAgo() {
         MealPlan otherPlan = MealPlan.Builder.builder()
                 .userId(user.id).recipeSource("all").status("ACTIVE").createdAt(new java.util.Date()).build();
         QuarkusTransaction.requiringNew().run(otherPlan::persistAndFlush);
@@ -131,6 +131,18 @@ public class RecipeRepositoryTest {
                 Instant.now().minusSeconds(60L * 60 * 24 * 100));
 
         assertTrue(candidateIds(10).contains(recipeA.id));
+    }
+
+    @Test
+    public void excludesRecipesRejectedWithin30DaysAcrossAnyPlan() {
+        MealPlan otherPlan = MealPlan.Builder.builder()
+                .userId(user.id).recipeSource("all").status("ACTIVE").createdAt(new java.util.Date()).build();
+        QuarkusTransaction.requiringNew().run(otherPlan::persistAndFlush);
+
+        insertInteraction(user.id, recipeA.id, otherPlan.id, FeedbackAction.REJECTED,
+                Instant.now().minusSeconds(60L * 60 * 24 * 10));
+
+        assertFalse(candidateIds(10).contains(recipeA.id));
     }
 
     @Test
@@ -143,6 +155,25 @@ public class RecipeRepositoryTest {
                 Instant.now().minusSeconds(60L * 60 * 24 * 31));
 
         assertTrue(candidateIds(10).contains(recipeA.id));
+    }
+
+    @Test
+    public void excludesRecipesAcceptedInThisPlanRegardlessOfAge() {
+        // Per-plan exclusion applies to the current plan irrespective of the
+        // cross-plan time windows above — even a very old interaction here
+        // must still exclude the recipe.
+        insertInteraction(user.id, recipeA.id, mealPlan.id, FeedbackAction.ACCEPTED,
+                Instant.now().minusSeconds(60L * 60 * 24 * 200));
+
+        assertFalse(candidateIds(10).contains(recipeA.id));
+    }
+
+    @Test
+    public void excludesRecipesRejectedInThisPlanRegardlessOfAge() {
+        insertInteraction(user.id, recipeA.id, mealPlan.id, FeedbackAction.REJECTED,
+                Instant.now().minusSeconds(60L * 60 * 24 * 200));
+
+        assertFalse(candidateIds(10).contains(recipeA.id));
     }
 
     @Test
