@@ -134,6 +134,18 @@ public class RecipeRepositoryTest {
     }
 
     @Test
+    public void includesRecipesRejectedMoreThan30DaysAgo() {
+        MealPlan otherPlan = MealPlan.Builder.builder()
+                .userId(user.id).recipeSource("all").status("ACTIVE").createdAt(new java.util.Date()).build();
+        QuarkusTransaction.requiringNew().run(otherPlan::persistAndFlush);
+
+        insertInteraction(user.id, recipeA.id, otherPlan.id, FeedbackAction.REJECTED,
+                Instant.now().minusSeconds(60L * 60 * 24 * 31));
+
+        assertTrue(candidateIds(10).contains(recipeA.id));
+    }
+
+    @Test
     public void onlyConsidersTheGivenUsersInteractions() {
         User otherUser = User.Builder.builder()
                 .id(UUID.randomUUID()).email(UUID.randomUUID() + "@test.com").name("Other")

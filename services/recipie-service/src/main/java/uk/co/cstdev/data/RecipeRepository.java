@@ -45,10 +45,10 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
     /**
      * Candidate recipes eligible to be claimed into a meal plan slot, in
      * random order: excludes recipes already accepted/rejected in this
-     * plan, recipes with any interaction in the last 90 days, and recipes
-     * already present in meal_plan_recipes for this plan (offered or
-     * accepted elsewhere in it) — a single join rather than three separate
-     * NOT IN subqueries.
+     * plan, recipes accepted in the last 90 days, recipes rejected in the
+     * last 30 days, and recipes already present in meal_plan_recipes for
+     * this plan (offered or accepted elsewhere in it) — a single join
+     * rather than three separate NOT IN subqueries.
      */
     public List<Recipe> findEligibleCandidates(UUID mealPlanId, UUID userId, int limit) {
         String sql = """
@@ -59,7 +59,8 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
                     WHERE user_id = :user_id
                     AND (
                         (interaction_type IN (:acceptedType, :rejectedType) AND meal_plan_id = :meal_plan_id)
-                        OR interaction_at > NOW() - INTERVAL '90 days'
+                        OR (interaction_type = :acceptedType AND interaction_at > NOW() - INTERVAL '90 days')
+                        OR (interaction_type = :rejectedType AND interaction_at > NOW() - INTERVAL '30 days')
                     )
                 )
                 AND r.id NOT IN (
