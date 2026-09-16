@@ -4,7 +4,7 @@ import { useState } from 'react';
 import RecipeCard from '@/app/components/RecipeCard';
 import RecipeSelector from '@/app/components/RecipeSelector';
 import ShoppingListOverlay from '@/app/components/ShoppingListOverlay';
-import { recordFeedback, getShoppingList } from '@/lib/api/mealPlans';
+import { recordFeedback, getShoppingList, addRecipeToMealPlan } from '@/lib/api/mealPlans';
 import { MealPlan, Recipe, ShoppingListResponse } from '@/types/recipe';
 
 interface MealPlanViewProps {
@@ -30,6 +30,11 @@ export default function MealPlanView({
         () => new Set(initialAcceptedRecipeIds)
     );
     const [acceptError, setAcceptError] = useState<string | null>(null);
+    // Trailing "+" tile: always available after the last RecipeCard, opens
+    // the search-and-pick RecipeSelector to add a recipe straight to
+    // ACCEPTED (not tied to any particular vacated slot).
+    const [isAddingRecipe, setIsAddingRecipe] = useState(false);
+    const [addRecipeError, setAddRecipeError] = useState<string | null>(null);
     // The number of slots this plan started with, before any reject
     // exhausted the pool and removed one. Used to render "X of Y filled".
     const [originalSlotCount] = useState(mealPlan.recipes.length);
@@ -138,6 +143,25 @@ export default function MealPlanView({
         }
     };
 
+    const handleAddRecipe = async (recipe: Recipe) => {
+        setAddRecipeError(null);
+        try {
+            await addRecipeToMealPlan(mealPlan.id, recipe.id);
+
+            setAcceptedRecipeIds(prev => new Set([...prev, recipe.id]));
+
+            onMealPlanUpdated({
+                ...mealPlan,
+                recipes: [...mealPlan.recipes, recipe],
+            });
+
+            setIsAddingRecipe(false);
+        } catch (error) {
+            setAddRecipeError('Failed to add recipe. Please try again.');
+            console.error('Failed to add recipe:', error);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="meal-plan-main-header flex justify-between items-center">
@@ -171,6 +195,11 @@ export default function MealPlanView({
                     {acceptError && (
                         <p className="text-sm text-red-600 mt-1" role="alert">
                             {acceptError}
+                        </p>
+                    )}
+                    {addRecipeError && (
+                        <p className="text-sm text-red-600 mt-1" role="alert">
+                            {addRecipeError}
                         </p>
                     )}
                 </div>
@@ -227,6 +256,27 @@ export default function MealPlanView({
                             )}
                         </div>
                     ))}
+
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between mb-2 invisible">
+                            <span className="text-sm font-medium">&nbsp;</span>
+                        </div>
+                        {isAddingRecipe ? (
+                            <RecipeSelector
+                                mealPlanId={mealPlan.id}
+                                onSelect={handleAddRecipe}
+                                onCancel={() => setIsAddingRecipe(false)}
+                            />
+                        ) : (
+                            <button
+                                onClick={() => setIsAddingRecipe(true)}
+                                aria-label="Add a recipe"
+                                className="w-full h-full min-h-[16rem] flex items-center justify-center border-2 border-dashed border-gray-300 rounded-lg text-gray-400 hover:text-blue-600 hover:border-blue-400 transition"
+                            >
+                                <span className="text-4xl font-light">+</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
             )}
 

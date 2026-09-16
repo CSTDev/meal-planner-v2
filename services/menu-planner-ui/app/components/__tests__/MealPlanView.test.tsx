@@ -475,6 +475,76 @@ describe('MealPlanView acceptance state', () => {
     });
 });
 
+describe('MealPlanView trailing add-recipe tile', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it('renders a trailing + tile after the last recipe card', () => {
+        render(
+            <MealPlanView
+                mealPlan={mockMealPlan}
+                onMealPlanUpdated={jest.fn()}
+                onReset={jest.fn()}
+            />
+        );
+
+        expect(screen.getByRole('button', { name: /add a recipe/i })).toBeInTheDocument();
+    });
+
+    it('clicking the tile opens the recipe selector, and selecting a recipe adds it as accepted immediately', async () => {
+        const user = userEvent.setup();
+        (recipesApi.searchRecipes as jest.Mock).mockResolvedValue([recipe3]);
+        (mealPlansApi.addRecipeToMealPlan as jest.Mock).mockResolvedValue(recipe3);
+
+        render(<StatefulMealPlanView initialMealPlan={{ ...mockMealPlan, recipes: [recipe1, recipe2] }} />);
+
+        await user.click(screen.getByRole('button', { name: /add a recipe/i }));
+
+        const searchInput = screen.getByPlaceholderText(/search for a recipe/i);
+        await user.type(searchInput, 'French');
+
+        await waitFor(() => {
+            expect(screen.getByText('French Toast')).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByText('French Toast'));
+
+        await waitFor(() => {
+            expect(screen.getByText(/your 3-day meal plan/i)).toBeInTheDocument();
+        });
+
+        expect(mealPlansApi.addRecipeToMealPlan).toHaveBeenCalledWith('plan-1', 'recipe-3');
+        expect(screen.getAllByText(/accepted ✓/i)).toHaveLength(1);
+        // Total/accepted counts reflect the newly-added recipe
+        expect(screen.getByText(/1 of 3 accepted/i)).toBeInTheDocument();
+    });
+
+    it('shows an error and keeps the selector state usable when the add call fails', async () => {
+        const user = userEvent.setup();
+        (recipesApi.searchRecipes as jest.Mock).mockResolvedValue([recipe3]);
+        (mealPlansApi.addRecipeToMealPlan as jest.Mock).mockRejectedValue(new Error('network error'));
+
+        render(<StatefulMealPlanView initialMealPlan={{ ...mockMealPlan, recipes: [recipe1] }} />);
+
+        await user.click(screen.getByRole('button', { name: /add a recipe/i }));
+
+        const searchInput = screen.getByPlaceholderText(/search for a recipe/i);
+        await user.type(searchInput, 'French');
+
+        await waitFor(() => {
+            expect(screen.getByText('French Toast')).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByText('French Toast'));
+
+        await waitFor(() => {
+            expect(screen.getByRole('alert')).toBeInTheDocument();
+        });
+        expect(screen.getByRole('alert').textContent).toMatch(/failed to add/i);
+    });
+});
+
 describe('MealPlanView empty plan state', () => {
     beforeEach(() => {
         jest.clearAllMocks();
