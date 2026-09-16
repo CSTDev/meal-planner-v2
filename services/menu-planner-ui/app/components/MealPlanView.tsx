@@ -257,61 +257,62 @@ export default function MealPlanView({
                 </div>
             </div>
 
-            {!isEmpty && (
-                <div className="recipe-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {mealPlan.recipes.map((recipe, index) => (
-                        <div key={`${recipe.id}-${index}`} className="space-y-2">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-medium text-gray-600">
-                                    Day {index + 1}
-                                </span>
-                                <button
-                                    onClick={() => setReplacingIndex(index)}
-                                    className="text-xs text-blue-600 hover:text-blue-800"
-                                >
-                                    Choose Different
-                                </button>
-                            </div>
-
-                            {replacingIndex === index ? (
-                                <RecipeSelector
-                                    mealPlanId={mealPlan.id}
-                                    onSelect={(recipe) => handleReplaceWithSpecific(recipe, index)}
-                                    onCancel={() => setReplacingIndex(null)}
-                                />
-                            ) : (
-                                <RecipeCard
-                                    recipe={recipe}
-                                    isAccepted={acceptedRecipeIds.has(recipe.id)}
-                                    onAccept={() => handleAccept(recipe)}
-                                    onReject={() => handleReject(recipe, index)}
-                                />
-                            )}
+            <div className="recipe-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {mealPlan.recipes.map((recipe, index) => (
+                    <div key={`${recipe.id}-${index}`} className="space-y-2">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-gray-600">
+                                Day {index + 1}
+                            </span>
+                            <button
+                                onClick={() => setReplacingIndex(index)}
+                                className="text-xs text-blue-600 hover:text-blue-800"
+                            >
+                                Choose Different
+                            </button>
                         </div>
-                    ))}
 
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between mb-2 invisible">
-                            <span className="text-sm font-medium">&nbsp;</span>
-                        </div>
-                        {isAddingRecipe ? (
+                        {replacingIndex === index ? (
                             <RecipeSelector
                                 mealPlanId={mealPlan.id}
-                                onSelect={handleAddRecipe}
-                                onCancel={() => setIsAddingRecipe(false)}
+                                onSelect={(recipe) => handleReplaceWithSpecific(recipe, index)}
+                                onCancel={() => setReplacingIndex(null)}
                             />
                         ) : (
-                            <button
-                                onClick={() => setIsAddingRecipe(true)}
-                                aria-label="Add a recipe"
-                                className="w-full h-full min-h-[16rem] flex items-center justify-center border-2 border-dashed border-gray-300 rounded-lg text-gray-400 hover:text-blue-600 hover:border-blue-400 transition"
-                            >
-                                <span className="text-4xl font-light">+</span>
-                            </button>
+                            <RecipeCard
+                                recipe={recipe}
+                                isAccepted={acceptedRecipeIds.has(recipe.id)}
+                                onAccept={() => handleAccept(recipe)}
+                                onReject={() => handleReject(recipe, index)}
+                            />
                         )}
                     </div>
+                ))}
+
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between mb-2 invisible">
+                        <span className="text-sm font-medium">&nbsp;</span>
+                    </div>
+                    {isAddingRecipe ? (
+                        <RecipeSelector
+                            mealPlanId={mealPlan.id}
+                            onSelect={handleAddRecipe}
+                            onCancel={() => {
+                                setIsAddingRecipe(false);
+                                setAddRecipeError(null);
+                            }}
+                        />
+                    ) : (
+                        <button
+                            onClick={() => setIsAddingRecipe(true)}
+                            aria-label="Add a recipe"
+                            className="w-full h-full min-h-[16rem] flex items-center justify-center border-2 border-dashed border-gray-300 rounded-lg text-gray-400 hover:text-blue-600 hover:border-blue-400 transition"
+                        >
+                            <span className="text-4xl font-light">+</span>
+                        </button>
+                    )}
                 </div>
-            )}
+            </div>
 
             <ShoppingListOverlay
                 isOpen={isShoppingListOpen}
