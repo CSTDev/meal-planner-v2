@@ -1100,4 +1100,127 @@ public class MealPlanResourceTest {
         }
 
         // End Accepted Recipes Tests
+
+        // Add Recipe Tests
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testAddRecipeAddsItDirectlyAsAccepted() {
+                MealPlan plan = createMealPlanForUser(USER_ID);
+                UUID recipeId = recipes.getFirst().id;
+
+                RecipeDTO addedRecipe = given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipeId\": \"%s\"}".formatted(recipeId))
+                                .post("/api/meal-plans/%s/recipes".formatted(plan.id))
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(RecipeDTO.class);
+
+                assertEquals(recipeId, addedRecipe.id);
+
+                MealPlanFullResponse updatedState = getMealPlanState(plan.id.toString());
+                assertEquals(1, updatedState.recipes().size());
+                assertEquals(recipeId, updatedState.recipes().get(0).recipe().id);
+                assertEquals("ACCEPTED", updatedState.recipes().get(0).status());
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testAddRecipeMissingRecipeIdReturns400() {
+                MealPlan plan = createMealPlanForUser(USER_ID);
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{}")
+                                .post("/api/meal-plans/%s/recipes".formatted(plan.id))
+                                .then()
+                                .statusCode(400);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testAddRecipeUnknownPlanReturns404() {
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipeId\": \"%s\"}".formatted(recipes.getFirst().id))
+                                .post("/api/meal-plans/%s/recipes".formatted(UUID.randomUUID()))
+                                .then()
+                                .statusCode(404);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testAddRecipePlanOwnedByOtherUserReturns403() {
+                User secondUser = createSecondUser();
+                MealPlan otherPlan = createMealPlanForUser(secondUser.id);
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipeId\": \"%s\"}".formatted(recipes.getFirst().id))
+                                .post("/api/meal-plans/%s/recipes".formatted(otherPlan.id))
+                                .then()
+                                .statusCode(403);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testAddRecipeUnknownRecipeReturns404() {
+                MealPlan plan = createMealPlanForUser(USER_ID);
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipeId\": \"%s\"}".formatted(UUID.randomUUID()))
+                                .post("/api/meal-plans/%s/recipes".formatted(plan.id))
+                                .then()
+                                .statusCode(404);
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testAddRecipeAlreadyInPlanReturns409() {
+                MealPlan plan = createMealPlanForUser(USER_ID);
+                UUID recipeId = recipes.getFirst().id;
+                acceptRecipeInPlan(plan.id, recipeId);
+
+                given()
+                                .when()
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"recipeId\": \"%s\"}".formatted(recipeId))
+                                .post("/api/meal-plans/%s/recipes".formatted(plan.id))
+                                .then()
+                                .statusCode(409);
+        }
+
+        // End Add Recipe Tests
 }
