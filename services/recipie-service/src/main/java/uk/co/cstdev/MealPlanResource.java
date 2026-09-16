@@ -27,9 +27,11 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import uk.co.cstdev.data.MealPlan;
 import uk.co.cstdev.data.MealPlanRecipeRepository;
+import uk.co.cstdev.data.MealPlanRecipeStatus;
 import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.RecipeDTO;
 import uk.co.cstdev.data.RecipeFeedback;
+import uk.co.cstdev.data.mealplan.AddRecipeRequest;
 import uk.co.cstdev.data.mealplan.FeedbackResponse;
 import uk.co.cstdev.data.mealplan.MealPlanRequest;
 import uk.co.cstdev.data.mealplan.MealPlanResponse;
@@ -271,6 +273,51 @@ public class MealPlanResource {
                 dtos.sort(Comparator.comparing(dto -> dto.title,
                                 Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)));
                 return Response.ok(dtos).build();
+        }
+
+        @POST
+        @Path("/{id}/recipes")
+        @Operation(summary = "Add a recipe to a meal plan", description = "Adds a recipe directly to the meal plan as ACCEPTED, bypassing the offer/feedback flow (the trailing '+' tile's manual search)")
+        @APIResponse(responseCode = "200", description = "Recipe added")
+        @APIResponse(responseCode = "400", description = "recipeId is required")
+        @APIResponse(responseCode = "401", description = "Unauthorized")
+        @APIResponse(responseCode = "403", description = "Meal plan does not belong to the authenticated user")
+        @APIResponse(responseCode = "404", description = "Meal plan or recipe not found")
+        @APIResponse(responseCode = "409", description = "Recipe is already in this meal plan")
+        public Response addRecipe(@PathParam("id") String id, AddRecipeRequest request) {
+                if (request == null || request.recipeId() == null) {
+                        return Response.status(Response.Status.BAD_REQUEST).build();
+                }
+
+                String userId = jwt.getSubject();
+
+                MealPlan mealPlan;
+                try {
+                        mealPlan = MealPlan.findById(UUID.fromString(id));
+                } catch (IllegalArgumentException e) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan == null) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan.userId == null || !mealPlan.userId.toString().equals(userId)) {
+                        return Response.status(Response.Status.FORBIDDEN).build();
+                }
+
+                Recipe recipe = Recipe.findById(request.recipeId());
+                if (recipe == null) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                boolean claimed = mealPlanRecipeRepository.claim(mealPlan.id, recipe.id,
+                                MealPlanRecipeStatus.ACCEPTED.name());
+                if (!claimed) {
+                        return Response.status(Response.Status.CONFLICT).build();
+                }
+
+                return Response.ok(RecipeDTO.from(recipe)).build();
         }
 
 }

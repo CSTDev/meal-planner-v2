@@ -20,7 +20,10 @@ export default function MealPlanGenerator() {
             // recipes server-side, then redirect to the plan's own page,
             // which loads full state via GET /api/meal-plans/{id}.
             const newMealPlan = await createMealPlan(numDays, recipeSource);
-            router.push(`/meal-plan/${newMealPlan.id}`);
+            // Carry the requested day count forward so the plan page can
+            // detect a shortfall (fewer recipes claimed than asked for) on
+            // first mount, without persisting a target count server-side.
+            router.push(`/meal-plan/${newMealPlan.id}?requested=${numDays}`);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to generate meal plan');
             setIsLoading(false);
@@ -31,10 +34,11 @@ export default function MealPlanGenerator() {
         <div className="max-w-2xl mx-auto bg-white shadow-md rounded-lg p-8">
             <div className="space-y-6">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="numDays" className="block text-sm font-medium text-gray-700 mb-2">
                         Number of Days
                     </label>
                     <input
+                        id="numDays"
                         type="number"
                         min="1"
                         max="30"
