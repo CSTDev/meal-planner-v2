@@ -173,6 +173,30 @@ export async function recordFeedback(
 }
 
 /**
+ * Adds a recipe directly to a meal plan as ACCEPTED (the trailing "+"
+ * tile's manual search) — bypasses the offer/feedback flow entirely, unlike
+ * `recordFeedback`.
+ */
+export async function addRecipeToMealPlan(
+    mealPlanId: string,
+    recipeId: string
+): Promise<Recipe> {
+    const response = await fetch(`/api/meal-plans/${mealPlanId}/recipes`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ recipeId }),
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to add recipe');
+    }
+
+    return response.json();
+}
+
+/**
  * Get the recipes currently accepted into a meal plan,
  * most recently accepted first
  */
