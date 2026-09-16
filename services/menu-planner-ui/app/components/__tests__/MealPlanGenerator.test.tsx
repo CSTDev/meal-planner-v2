@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MealPlanGenerator from '@/app/components/MealPlanGenerator';
 import * as mealPlansApi from '@/lib/api/mealPlans';
@@ -32,7 +32,30 @@ describe('MealPlanGenerator', () => {
         await user.click(screen.getByRole('button', { name: /generate meal plan/i }));
 
         expect(mealPlansApi.createMealPlan).toHaveBeenCalledTimes(1);
-        expect(mockPush).toHaveBeenCalledWith('/meal-plan/plan-42');
+        // Carries the requested numDays forward as a query param, so the
+        // plan page can detect and surface a shortfall on first mount.
+        expect(mockPush).toHaveBeenCalledWith('/meal-plan/plan-42?requested=7');
+    });
+
+    it('carries the user-entered numDays forward in the redirect query param', async () => {
+        const user = userEvent.setup();
+        (mealPlansApi.createMealPlan as jest.Mock).mockResolvedValue({
+            id: 'plan-99',
+            userId: 'user-1',
+            recipeSource: 'own',
+            createdAt: '2026-01-01',
+            status: 'ACTIVE',
+        });
+
+        render(<MealPlanGenerator />);
+
+        const numDaysInput = screen.getByLabelText(/number of days/i);
+        fireEvent.change(numDaysInput, { target: { value: '10' } });
+
+        await user.click(screen.getByRole('button', { name: /generate meal plan/i }));
+
+        expect(mealPlansApi.createMealPlan).toHaveBeenCalledWith(10, 'own');
+        expect(mockPush).toHaveBeenCalledWith('/meal-plan/plan-99?requested=10');
     });
 
     it('does not redirect and shows an error when creation fails', async () => {
