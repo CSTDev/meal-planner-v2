@@ -545,6 +545,57 @@ describe('MealPlanView trailing add-recipe tile', () => {
     });
 });
 
+describe('MealPlanView shortfall banner', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it('shows a dismissible banner naming the shortfall when fewer recipes were claimed than requested', () => {
+        render(
+            <MealPlanView
+                mealPlan={mockMealPlan}
+                requestedCount={5}
+                onMealPlanUpdated={jest.fn()}
+                onReset={jest.fn()}
+            />
+        );
+
+        expect(screen.getByText(/only 2 of the 5 you asked for were available/i)).toBeInTheDocument();
+
+        const user = userEvent.setup();
+        return user.click(screen.getByRole('button', { name: /dismiss/i })).then(() => {
+            expect(
+                screen.queryByText(/only 2 of the 5 you asked for were available/i)
+            ).not.toBeInTheDocument();
+        });
+    });
+
+    it('does not show the banner when requestedCount matches or is below the number of recipes', () => {
+        render(
+            <MealPlanView
+                mealPlan={mockMealPlan}
+                requestedCount={2}
+                onMealPlanUpdated={jest.fn()}
+                onReset={jest.fn()}
+            />
+        );
+
+        expect(screen.queryByText(/you asked for were available/i)).not.toBeInTheDocument();
+    });
+
+    it('does not show the banner when requestedCount is absent', () => {
+        render(
+            <MealPlanView
+                mealPlan={mockMealPlan}
+                onMealPlanUpdated={jest.fn()}
+                onReset={jest.fn()}
+            />
+        );
+
+        expect(screen.queryByText(/you asked for were available/i)).not.toBeInTheDocument();
+    });
+});
+
 describe('MealPlanView empty plan state', () => {
     beforeEach(() => {
         jest.clearAllMocks();

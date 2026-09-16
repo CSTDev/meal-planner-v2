@@ -11,6 +11,12 @@ interface MealPlanViewProps {
     mealPlan: MealPlan;
     /** Recipe ids already ACCEPTED when this view was hydrated (e.g. after a refresh). */
     initialAcceptedRecipeIds?: string[];
+    /**
+     * The number of days originally requested at generation time (carried
+     * forward via a query param — never persisted server-side). Used only
+     * to detect a shortfall on first mount; not kept in sync afterwards.
+     */
+    requestedCount?: number;
     onMealPlanUpdated: (mealPlan: MealPlan) => void;
     onReset: () => void;
 }
@@ -18,6 +24,7 @@ interface MealPlanViewProps {
 export default function MealPlanView({
     mealPlan,
     initialAcceptedRecipeIds = [],
+    requestedCount,
     onMealPlanUpdated,
     onReset
 }: MealPlanViewProps) {
@@ -39,6 +46,14 @@ export default function MealPlanView({
     // exhausted the pool and removed one. Used to render "X of Y filled".
     const [originalSlotCount] = useState(mealPlan.recipes.length);
     const [exhaustedCount, setExhaustedCount] = useState(0);
+    // Shortfall banner (situation 1: short at creation): shown once on
+    // first mount if fewer recipes were claimed than requested, dismissible
+    // and never re-shown after that — it doesn't track further changes.
+    const [isShortfallBannerDismissed, setIsShortfallBannerDismissed] = useState(false);
+    const showShortfallBanner =
+        !isShortfallBannerDismissed &&
+        requestedCount !== undefined &&
+        originalSlotCount < requestedCount;
 
     const acceptedCount = acceptedRecipeIds.size;
     const totalCount = mealPlan.recipes.length;
@@ -191,6 +206,24 @@ export default function MealPlanView({
                             {totalCount} of {originalSlotCount} recipes could be filled — ran out of
                             available recipes for the rest.
                         </p>
+                    )}
+                    {showShortfallBanner && (
+                        <div
+                            className="flex items-center justify-between gap-4 text-sm text-amber-600 mt-1"
+                            role="status"
+                        >
+                            <span>
+                                Only {originalSlotCount} of the {requestedCount} you asked for were
+                                available — add one below.
+                            </span>
+                            <button
+                                onClick={() => setIsShortfallBannerDismissed(true)}
+                                aria-label="Dismiss"
+                                className="text-amber-600 hover:text-amber-800 font-medium"
+                            >
+                                Dismiss
+                            </button>
+                        </div>
                     )}
                     {acceptError && (
                         <p className="text-sm text-red-600 mt-1" role="alert">

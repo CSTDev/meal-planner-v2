@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import MealPlanView from '@/app/components/MealPlanView';
 import { getMealPlan } from '@/lib/api/mealPlans';
 import { MealPlan } from '@/types/recipe';
@@ -9,7 +9,14 @@ import { MealPlan } from '@/types/recipe';
 export default function MealPlanDetailPage() {
     const params = useParams<{ id: string }>();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const planId = params.id;
+
+    // Carried forward from MealPlanGenerator's redirect (?requested=N) so
+    // MealPlanView can detect a shortfall on first mount — never persisted
+    // server-side, so it's simply absent after a refresh.
+    const requestedParam = searchParams.get('requested');
+    const requestedCount = requestedParam ? Number(requestedParam) : undefined;
 
     const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
     const [initialAcceptedRecipeIds, setInitialAcceptedRecipeIds] = useState<string[]>([]);
@@ -54,6 +61,7 @@ export default function MealPlanDetailPage() {
                     <MealPlanView
                         mealPlan={mealPlan}
                         initialAcceptedRecipeIds={initialAcceptedRecipeIds}
+                        requestedCount={requestedCount}
                         onMealPlanUpdated={setMealPlan}
                         onReset={() => router.push('/meal-plan')}
                     />
