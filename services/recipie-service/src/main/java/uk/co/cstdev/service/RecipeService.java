@@ -70,7 +70,7 @@ public class RecipeService {
             recipeRepository.flush();
         } catch (PersistenceException e) {
             if (isUniqueConstraintViolation(e)) {
-                LOGGER.info("Duplicate recipe URL, ignoring");
+                LOGGER.info(() -> "Duplicate recipe URL, ignoring: url=" + recipe.url + " userId=" + userId);
                 return;
             }
             throw e;
