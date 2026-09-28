@@ -33,3 +33,37 @@ SUMMARY: Before merging, verify (or migrate away) any pre-existing duplicate (ur
   "summary": "Verify/handle pre-existing duplicate (url, scraped_by_user_id) rows before the new unique constraint migration ships, and add a test covering the real Kafka-consumer nested-transaction path for the constraint-violation swallow."
 }
 ---
+
+## Review cycle 2 — 2026-09-28
+
+STATUS: NEEDS_CHANGES
+
+CRITICAL:
+- The new cleanup step in `V6__add_unique_url_per_user.sql` (the `DELETE FROM recipes WHERE id IN (... ROW_NUMBER() ...)` added in 74244f7) does not actually make the migration deploy-safe: it will itself fail with a foreign-key violation if any of the non-earliest duplicate rows it tries to delete are referenced by `meal_plan_recipes.recipe_id` or `user_recipe_interactions.recipe_id` (both `REFERENCES recipes(id)` with no `ON DELETE` clause in `V2__add_remaining_tables.sql`/`V4__add_meal_plan_recipes.sql`, so they default to `NO ACTION`/`RESTRICT`). I reproduced this directly against the live dev Postgres instance (host.docker.internal:54322) in a rolled-back transaction: seeding two recipes with the same `(url, scraped_by_user_id)` and pointing a `meal_plan_recipes` row (or, separately, a `user_recipe_interactions` row) at the *later* duplicate, then running the exact DELETE from the migration, produces:
+  - `ERROR: update or delete on table "recipes" violates foreign key constraint "meal_plan_recipes_recipe_id_fkey" ... DETAIL: Key (id)=(...) is still referenced from table "meal_plan_recipes".`
+  - `ERROR: update or delete on table "recipes" violates foreign key constraint "user_recipe_interactions_recipe_id_fkey" ... DETAIL: Key (id)=(...) is still referenced from table "user_recipe_interactions".`
+  This is entirely plausible in production: a user scraping the same URL twice before this feature existed could easily have accepted/rejected/viewed the second (later) duplicate into a meal plan, which is exactly the kind of pre-existing duplicate this migration is meant to clean up. The net effect is the same failure mode cycle 1 originally flagged — Flyway migration aborts, app fails to boot at deploy — just moved from the `ALTER TABLE` to the new `DELETE`. The new `AddUniqueUrlPerUserMigrationTest` doesn't catch this because it only ever inserts rows into `recipes` in isolation and never seeds a `meal_plan_recipes`/`user_recipe_interactions` row referencing one of the duplicates, so the FK-violation path has zero coverage. Before merging: either re-point/delete the referencing rows for the duplicate being removed (e.g. re-point `meal_plan_recipes`/`user_recipe_interactions` rows from the deleted duplicate id to the surviving "earliest" id before the `DELETE`, or delete them too if that's an acceptable loss), or otherwise decide how referenced duplicates should be resolved, and add a migration test that seeds a referencing row to prove it.
+
+WARNINGS:
+- (Carried over from cycle 1, not addressed this round and not required to be — noting for completeness) `isUniqueConstraintViolation` matching is still purely exception-type-based and `@Transactional(dontRollbackOn = PersistenceException.class)` is still applied at the class-exception-type level on `addRecipe()`. This is unchanged from cycle 1 and remains a latent fragility if `addRecipe()` is ever called as a standalone top-level transaction elsewhere, though it's out of scope for this cycle's fixes.
+
+SUGGESTIONS:
+- The tie-break `ORDER BY createdat ASC, id ASC` falls back entirely to `id` ordering (arbitrary, since `id` is a random UUID) when `createdat` is NULL for all rows in a duplicate group — `createdAt` has no `NOT NULL` constraint in `V1__initial_schema.sql`, so old/imported rows could plausibly have a null value. The result is still deterministic and safe (some single row is always kept), just not necessarily "the actual earliest" in that edge case. Not blocking, but worth a one-line comment or a test case, since the rest of the migration's comment explicitly claims "keep the earliest."
+- `AddUniqueUrlPerUserMigrationTest.runV6Migration()` splits the loaded SQL file on `;` to execute each statement individually — reasonable for the current file's contents (verified, no stray semicolons in the comments), but fragile if a future edit to `V6__...sql` adds a semicolon inside a comment or string literal. Not a real risk today given the file's simplicity.
+
+VERIFICATION PERFORMED: Compiled the module (`mvn -o compile`, `mvn -o test-compile`) successfully. Ran the new `AddUniqueUrlPerUserMigrationTest` (3/3 pass) and `CreateRecipeMessageReceiverDuplicateHandlingTest` (1/1 pass) against the live dev Postgres/Kafka(Redpanda testcontainer) instance — both green, and the log output confirms the swallowed-duplicate message now includes `url=` and `userId=` as required. Also re-ran `RecipeServiceTest`, `RecipeRepositoryTest`, `CreateRecipeMessageReceiverTest`, and `ScrapeResourceTest` to confirm no regressions (all green). Separately reproduced the FK-violation gap described above directly against the same live DB in a rolled-back transaction (see CRITICAL).
+
+SUMMARY: The cycle-1 CRITICAL is only partially fixed — the new DELETE-before-ALTER cleanup in V6 correctly handles plain duplicate recipes but will itself abort the migration with a foreign-key violation if a duplicate being removed is referenced by meal_plan_recipes or user_recipe_interactions, which is a realistic pre-existing-data scenario; both cycle-1 WARNINGs (nested-transaction test coverage, log message context) are genuinely and verifiably fixed.
+
+---json
+{
+  "status": "NEEDS_CHANGES",
+  "critical": [
+    "V6__add_unique_url_per_user.sql's new cleanup DELETE (added to fix cycle 1's critical finding) will itself fail with a foreign-key violation and abort the migration if a duplicate recipe row being deleted is referenced by meal_plan_recipes.recipe_id or user_recipe_interactions.recipe_id (both REFERENCES recipes(id) with no ON DELETE action) -- reproduced directly against the live dev DB. No test seeds a referencing row, so this gap is uncovered. Deploy-time migration failure is still possible on realistic pre-existing data."
+  ],
+  "warnings": [
+    "Carried over, not required this cycle: isUniqueConstraintViolation/dontRollbackOn is still exception-type-based rather than scoped to the specific duplicate case."
+  ],
+  "summary": "The DELETE-before-ALTER cleanup added this cycle does not fully resolve cycle 1's critical migration-failure risk: it will itself abort on foreign-key violations if a duplicate row being removed is referenced from meal_plan_recipes or user_recipe_interactions (reproduced against the live DB); the two in-scope WARNINGs (nested-transaction test, log message url/userId) are correctly and verifiably fixed."
+}
+---
