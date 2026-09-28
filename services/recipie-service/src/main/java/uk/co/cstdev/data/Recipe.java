@@ -15,9 +15,21 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
+/**
+ * The {@code recipes_url_user_unique} constraint below mirrors
+ * {@code V6__add_unique_url_per_user.sql}: it is declared here too because
+ * dev/test environments have Hibernate generate the schema directly from
+ * entity mappings (see {@code %dev}/{@code %test}
+ * {@code quarkus.hibernate-orm.schema-management.strategy=drop-and-create}
+ * in application.properties), bypassing the Flyway migrations that apply in
+ * production. Without this annotation the constraint would only exist in
+ * prod, and duplicate-URL races would go uncaught in dev/test.
+ */
 @Entity
-@Table(name = "recipes")
+@Table(name = "recipes", uniqueConstraints = @UniqueConstraint(name = "recipes_url_user_unique", columnNames = {
+        "url", "scraped_by_user_id" }))
 public class Recipe extends PanacheEntityBase {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

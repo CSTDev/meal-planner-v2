@@ -2,10 +2,12 @@ package uk.co.cstdev.data;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -18,6 +20,7 @@ import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceException;
 
 @QuarkusTest
 public class RecipeRepositoryTest {
@@ -203,5 +206,66 @@ public class RecipeRepositoryTest {
 
         // Only the 3 seeded recipes are eligible.
         assertEquals(3, candidates.size());
+    }
+
+    @Test
+    public void findByUrlAndUserIdFindsAMatchingRecipeForThatUser() {
+        String url = "https://example.com/recipe-a";
+        QuarkusTransaction.requiringNew().run(() -> Recipe.Builder.recipe()
+                .title("Recipe With Url")
+                .url(url)
+                .servings(2)
+                .scrapedByUserId(user.id)
+                .build()
+                .persistAndFlush());
+
+        Optional<Recipe> found = recipeRepository.findByUrlAndUserId(url, user.id);
+
+        assertTrue(found.isPresent());
+        assertEquals(url, found.get().url);
+    }
+
+    @Test
+    public void findByUrlAndUserIdIgnoresTheSameUrlScrapedByADifferentUser() {
+        String url = "https://example.com/recipe-a";
+        User otherUser = User.Builder.builder()
+                .id(UUID.randomUUID()).email(UUID.randomUUID() + "@test.com").name("Other")
+                .createdAt(new java.util.Date()).build();
+        QuarkusTransaction.requiringNew().run(() -> {
+            otherUser.persistAndFlush();
+            Recipe.Builder.recipe()
+                    .title("Recipe With Url")
+                    .url(url)
+                    .servings(2)
+                    .scrapedByUserId(otherUser.id)
+                    .build()
+                    .persistAndFlush();
+        });
+
+        Optional<Recipe> found = recipeRepository.findByUrlAndUserId(url, user.id);
+
+        assertFalse(found.isPresent());
+    }
+
+    @Test
+    public void uniqueConstraintRejectsADuplicateUrlForTheSameUser() {
+        String url = "https://example.com/recipe-duplicate";
+        QuarkusTransaction.requiringNew().run(() -> Recipe.Builder.recipe()
+                .title("Original")
+                .url(url)
+                .servings(2)
+                .scrapedByUserId(user.id)
+                .build()
+                .persistAndFlush());
+
+        assertThrows(PersistenceException.class, () -> QuarkusTransaction.requiringNew().run(() -> {
+            Recipe duplicate = Recipe.Builder.recipe()
+                    .title("Duplicate")
+                    .url(url)
+                    .servings(2)
+                    .scrapedByUserId(user.id)
+                    .build();
+            duplicate.persistAndFlush();
+        }));
     }
 }
