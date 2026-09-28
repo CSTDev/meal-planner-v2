@@ -1,6 +1,7 @@
 package uk.co.cstdev.data;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
@@ -16,6 +17,17 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
 
     public List<Recipe> findByUserId(UUID userId) {
         return list("scrapedByUserId", userId);
+    }
+
+    /**
+     * Looks up a recipe by the exact URL a scrape was requested for and the
+     * requesting user, used to pre-check for duplicates before a scrape is
+     * kicked off. Only finds an existing match when both the URL and the
+     * scraping user match — a different user scraping the same URL is not a
+     * duplicate (see class-level docs on the scope of dedup).
+     */
+    public Optional<Recipe> findByUrlAndUserId(String url, UUID userId) {
+        return find("url = ?1 and scrapedByUserId = ?2", url, userId).firstResultOptional();
     }
 
     /**

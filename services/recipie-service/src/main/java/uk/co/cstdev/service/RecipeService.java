@@ -1,6 +1,7 @@
 package uk.co.cstdev.service;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import io.micrometer.core.instrument.Counter;
@@ -41,6 +42,10 @@ public class RecipeService {
         recipe.scrapedByUserId = userId;
         recipeRepository.persist(recipe);
         recipesAddedCounter.increment();
+    }
+
+    public Optional<Recipe> findByUrlAndUserId(String url, UUID userId) {
+        return recipeRepository.findByUrlAndUserId(url, userId);
     }
 
     public List<Recipe> getRecipesForUser(UUID userId) {

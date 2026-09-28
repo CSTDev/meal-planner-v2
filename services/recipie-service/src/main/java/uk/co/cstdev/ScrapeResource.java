@@ -21,6 +21,7 @@ import jakarta.ws.rs.core.Response;
 import uk.co.cstdev.data.ScrapeRequest;
 import uk.co.cstdev.data.messaging.EventMetadata;
 import uk.co.cstdev.data.messaging.RecipeScrapeRequested;
+import uk.co.cstdev.service.RecipeService;
 
 @Path("/api/scrape")
 @Produces(MediaType.APPLICATION_JSON)
@@ -34,13 +35,21 @@ public class ScrapeResource {
     @Inject
     JsonWebToken jwt;
 
+    @Inject
+    RecipeService recipeService;
+
     @POST
     @Authenticated
-    @Operation(summary = "Request recipe scrape", description = "Publishes a scrape-requested event for the given URL. The recipe is stored asynchronously when scraping completes.")
-    @APIResponse(responseCode = "200", description = "Scrape request accepted")
+    @Operation(summary = "Request recipe scrape", description = "Publishes a scrape-requested event for the given URL. The recipe is stored asynchronously when scraping completes. If the requesting user has already scraped this URL, no event is published and the existing recipe is left as-is.")
+    @APIResponse(responseCode = "200", description = "Scrape request accepted, or a duplicate was silently ignored")
     @APIResponse(responseCode = "401", description = "Unauthorized")
     public Response ScrapeRecipe(ScrapeRequest url) {
         String userId = jwt.getSubject();
+
+        if (recipeService.findByUrlAndUserId(url.url(), UUID.fromString(userId)).isPresent()) {
+            return Response.ok().build();
+        }
+
         scrapeRequestEmitter.send(new RecipeScrapeRequested(
                 UUID.randomUUID().toString(),
                 Instant.now(),
