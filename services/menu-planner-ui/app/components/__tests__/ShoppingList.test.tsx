@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ShoppingList from '@/app/components/ShoppingList';
@@ -107,5 +109,70 @@ describe('ShoppingList', () => {
         render(<ShoppingList data={data} />);
 
         expect(screen.getByText(/salt/i)).toBeInTheDocument();
+    });
+
+    describe('split behind each total', () => {
+        const render1 = (amounts: ShoppingListResponse['ingredients'][number]['amounts']) =>
+            render(
+                <ShoppingList
+                    data={{ ingredients: [{ name: 'thing', amounts, breakdown: [] }] }}
+                />
+            );
+
+        it('collapses identical parts with a multiplier', () => {
+            render1([{ quantity: 500, unit: 'g', parts: [{ quantity: 250, unit: 'g', count: 2 }] }]);
+            expect(screen.getByText('500 g (2 x 250 g)')).toBeInTheDocument();
+        });
+
+        it('joins differing parts with + in the given order', () => {
+            render1([{
+                quantity: 800, unit: 'g',
+                parts: [{ quantity: 300, unit: 'g', count: 1 }, { quantity: 250, unit: 'g', count: 2 }],
+            }]);
+            expect(screen.getByText('800 g (300 g + 2 x 250 g)')).toBeInTheDocument();
+        });
+
+        it('keeps each part in its original unit', () => {
+            render1([{
+                quantity: 1500, unit: 'g',
+                parts: [{ quantity: 1, unit: 'kg', count: 1 }, { quantity: 500, unit: 'g', count: 1 }],
+            }]);
+            expect(screen.getByText('1500 g (1 kg + 500 g)')).toBeInTheDocument();
+        });
+
+        it('shows no brackets for a single contributor', () => {
+            render1([{ quantity: 250, unit: 'g', parts: [] }]);
+            expect(screen.getByText('250 g')).toBeInTheDocument();
+        });
+
+        it('tolerates responses without parts', () => {
+            render1([{ quantity: 250, unit: 'g' }]);
+            expect(screen.getByText('250 g')).toBeInTheDocument();
+        });
+
+        it('renders unit-less counts', () => {
+            render1([{
+                quantity: 3, unit: null,
+                parts: [{ quantity: 2, unit: null, count: 1 }, { quantity: 1, unit: null, count: 1 }],
+            }]);
+            expect(screen.getByText('3 (2 + 1)')).toBeInTheDocument();
+        });
+
+        it('is not hidden by the print stylesheet', () => {
+            render1([{ quantity: 500, unit: 'g', parts: [{ quantity: 250, unit: 'g', count: 2 }] }]);
+            const css = fs.readFileSync(path.join(process.cwd(), 'app/globals.css'), 'utf8');
+            const printCss = css.slice(css.indexOf('@media print'));
+            const split = screen.getByText('500 g (2 x 250 g)');
+            const classes = [split, ...Array.from(split.querySelectorAll('*'))]
+                .flatMap((el) => Array.from(el.classList));
+            // Every ancestor/own class must be absent from print display:none rules
+            const hiddenSelectors = printCss
+                .split('}')
+                .filter((rule) => /display:\s*none/.test(rule))
+                .map((rule) => rule.split('{')[0]);
+            for (const cls of classes) {
+                expect(hiddenSelectors.some((sel) => sel.includes(`.${cls}`))).toBe(false);
+            }
+        });
     });
 });

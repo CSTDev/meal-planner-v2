@@ -31,9 +31,17 @@ export interface Ingredient {
     originalText: string;
 }
 
+export interface ShoppingListPart {
+    quantity: number | null;
+    unit: string | null;
+    count: number;
+}
+
 export interface ShoppingListAmount {
     quantity: number | null;
     unit: string | null;
+    /** Split behind the total, largest first; empty/absent for a single contributor. */
+    parts?: ShoppingListPart[];
 }
 
 export interface ShoppingListBreakdownEntry {
