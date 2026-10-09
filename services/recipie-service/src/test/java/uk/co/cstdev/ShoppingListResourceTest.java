@@ -474,6 +474,7 @@ public class ShoppingListResourceTest {
                 "Quantity must not be doubled (expected 200 g, not 400 g — verifies ON CONFLICT idempotency)");
         assertEquals("g", amounts.get(0).get("unit"));
     }
+
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> amountsOf(Map<String, Object> ingredient) {
         return (List<Map<String, Object>>) ingredient.get("amounts");
@@ -530,6 +531,23 @@ public class ShoppingListResourceTest {
         assertEquals(2, parts.size());
         assertPart(parts.get(0), 300f, "g", 1);
         assertPart(parts.get(1), 250f, "g", 2);
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
+    public void testEqualBaseValuePartsAreOrderedByUnitName() {
+        accept(persistRecipe("A", new IngredientSpec("flour", 1f, "kg")));
+        accept(persistRecipe("B", new IngredientSpec("flour", 1000f, "g")));
+
+        Map<String, Object> amount = amountsOf(shoppingLineFor("flour")).get(0);
+        List<Map<String, Object>> parts = partsOf(amount);
+        assertEquals(2, parts.size());
+        assertPart(parts.get(0), 1000f, "g", 1);
+        assertPart(parts.get(1), 1f, "kg", 1);
     }
 
     @Test

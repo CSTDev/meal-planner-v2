@@ -161,15 +161,28 @@ describe('ShoppingList', () => {
         it('is not hidden by the print stylesheet', () => {
             render1([{ quantity: 500, unit: 'g', parts: [{ quantity: 250, unit: 'g', count: 2 }] }]);
             const css = fs.readFileSync(path.join(process.cwd(), 'app/globals.css'), 'utf8');
-            const printCss = css.slice(css.indexOf('@media print'));
+            const start = css.indexOf('@media print');
+            expect(start).toBeGreaterThanOrEqual(0);
+            // Extract the @media print block by balancing braces
+            const open = css.indexOf('{', start);
+            let depth = 0;
+            let end = open;
+            for (; end < css.length; end++) {
+                if (css[end] === '{') depth++;
+                else if (css[end] === '}' && --depth === 0) break;
+            }
+            const printCss = css.slice(open + 1, end);
+            const hiddenSelectors = Array.from(printCss.matchAll(/([^{}]+)\{([^{}]*)\}/g))
+                .filter(([, , body]) => /display:\s*none/.test(body))
+                .flatMap(([, selectors]) => selectors.split(','));
+            expect(hiddenSelectors.length).toBeGreaterThan(0);
+
             const split = screen.getByText('500 g (2 x 250 g)');
-            const classes = [split, ...Array.from(split.querySelectorAll('*'))]
-                .flatMap((el) => Array.from(el.classList));
-            // Every ancestor/own class must be absent from print display:none rules
-            const hiddenSelectors = printCss
-                .split('}')
-                .filter((rule) => /display:\s*none/.test(rule))
-                .map((rule) => rule.split('{')[0]);
+            const elements: Element[] = [];
+            for (let el: Element | null = split; el; el = el.parentElement) elements.push(el);
+            elements.push(...Array.from(split.querySelectorAll('*')));
+            const classes = elements.flatMap((el) => Array.from(el.classList));
+            // No own, descendant or ancestor class may be hidden in print
             for (const cls of classes) {
                 expect(hiddenSelectors.some((sel) => sel.includes(`.${cls}`))).toBe(false);
             }
