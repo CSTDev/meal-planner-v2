@@ -474,4 +474,164 @@ public class ShoppingListResourceTest {
                 "Quantity must not be doubled (expected 200 g, not 400 g — verifies ON CONFLICT idempotency)");
         assertEquals("g", amounts.get(0).get("unit"));
     }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> amountsOf(Map<String, Object> ingredient) {
+        return (List<Map<String, Object>>) ingredient.get("amounts");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> partsOf(Map<String, Object> amount) {
+        return (List<Map<String, Object>>) amount.get("parts");
+    }
+
+    private void assertPart(Map<String, Object> part, float quantity, String unit, int count) {
+        assertEquals(quantity, ((Number) part.get("quantity")).floatValue());
+        assertEquals(unit, part.get("unit"));
+        assertEquals(count, ((Number) part.get("count")).intValue());
+    }
+
+    private Map<String, Object> shoppingLineFor(String name) {
+        Map<String, Object> line = findIngredient(ingredientsOf(getShoppingList(mealPlan.id.toString())), name);
+        assertNotNull(line);
+        return line;
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
+    public void testIdenticalContributionsCollapseIntoCountedPart() {
+        accept(persistRecipe("A", new IngredientSpec("rice", 250f, "g")));
+        accept(persistRecipe("B", new IngredientSpec("rice", 250f, "g")));
+
+        Map<String, Object> amount = amountsOf(shoppingLineFor("rice")).get(0);
+        assertEquals(500.0f, ((Number) amount.get("quantity")).floatValue());
+        List<Map<String, Object>> parts = partsOf(amount);
+        assertEquals(1, parts.size());
+        assertPart(parts.get(0), 250f, "g", 2);
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
+    public void testPartsAreSortedLargestFirst() {
+        accept(persistRecipe("A", new IngredientSpec("rice", 250f, "g")));
+        accept(persistRecipe("B", new IngredientSpec("rice", 250f, "g")));
+        accept(persistRecipe("C", new IngredientSpec("rice", 300f, "g")));
+
+        Map<String, Object> amount = amountsOf(shoppingLineFor("rice")).get(0);
+        assertEquals(800.0f, ((Number) amount.get("quantity")).floatValue());
+        List<Map<String, Object>> parts = partsOf(amount);
+        assertEquals(2, parts.size());
+        assertPart(parts.get(0), 300f, "g", 1);
+        assertPart(parts.get(1), 250f, "g", 2);
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
+    public void testEqualBaseValuePartsAreOrderedByUnitName() {
+        accept(persistRecipe("A", new IngredientSpec("flour", 1f, "kg")));
+        accept(persistRecipe("B", new IngredientSpec("flour", 1000f, "g")));
+
+        Map<String, Object> amount = amountsOf(shoppingLineFor("flour")).get(0);
+        List<Map<String, Object>> parts = partsOf(amount);
+        assertEquals(2, parts.size());
+        assertPart(parts.get(0), 1000f, "g", 1);
+        assertPart(parts.get(1), 1f, "kg", 1);
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
+    public void testMixedConvertibleUnitsKeepOriginalUnitsInParts() {
+        accept(persistRecipe("A", new IngredientSpec("flour", 500f, "g")));
+        accept(persistRecipe("B", new IngredientSpec("flour", 1f, "kg")));
+
+        Map<String, Object> amount = amountsOf(shoppingLineFor("flour")).get(0);
+        assertEquals(1500.0f, ((Number) amount.get("quantity")).floatValue());
+        assertEquals("g", amount.get("unit"));
+        List<Map<String, Object>> parts = partsOf(amount);
+        assertEquals(2, parts.size());
+        assertPart(parts.get(0), 1f, "kg", 1);
+        assertPart(parts.get(1), 500f, "g", 1);
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
+    public void testSingleContributorHasNoParts() {
+        accept(persistRecipe("A", new IngredientSpec("rice", 250f, "g")));
+
+        Map<String, Object> amount = amountsOf(shoppingLineFor("rice")).get(0);
+        assertTrue(partsOf(amount).isEmpty(), "A single contributor should not show a split");
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
+    public void testIncompatibleUnitsEachGetOwnParts() {
+        accept(persistRecipe("A", new IngredientSpec("flour", 1f, "cup")));
+        accept(persistRecipe("B", new IngredientSpec("flour", 1f, "cup")));
+        accept(persistRecipe("C", new IngredientSpec("flour", 200f, "g")));
+
+        List<Map<String, Object>> amounts = amountsOf(shoppingLineFor("flour"));
+        Map<String, Object> cup = amounts.stream().filter(a -> "cup".equals(a.get("unit"))).findFirst().orElseThrow();
+        Map<String, Object> grams = amounts.stream().filter(a -> "g".equals(a.get("unit"))).findFirst().orElseThrow();
+        assertEquals(1, partsOf(cup).size());
+        assertPart(partsOf(cup).get(0), 1f, "cup", 2);
+        assertTrue(partsOf(grams).isEmpty());
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
+    public void testQuantityLessContributionsNeverAppearInParts() {
+        accept(persistRecipe("A", new IngredientSpec("salt", 0f, "to taste")));
+        accept(persistRecipe("B", new IngredientSpec("salt", 0f, "to taste")));
+        accept(persistRecipe("C", new IngredientSpec("pepper", 5f, "g")));
+        accept(persistRecipe("D", new IngredientSpec("pepper", 0f, "to taste")));
+
+        assertTrue(amountsOf(shoppingLineFor("salt")).isEmpty());
+        Map<String, Object> amount = amountsOf(shoppingLineFor("pepper")).get(0);
+        assertTrue(partsOf(amount).isEmpty(), "Only one quantified contribution, so no split");
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
+    public void testDuplicateLinesInOneRecipeAreSeparateParts() {
+        accept(persistRecipe("A", new IngredientSpec("onion", 2f, null), new IngredientSpec("onion", 1f, null)));
+
+        Map<String, Object> amount = amountsOf(shoppingLineFor("onion")).get(0);
+        assertEquals(3.0f, ((Number) amount.get("quantity")).floatValue());
+        List<Map<String, Object>> parts = partsOf(amount);
+        assertEquals(2, parts.size());
+        assertPart(parts.get(0), 2f, null, 1);
+        assertPart(parts.get(1), 1f, null, 1);
+    }
 }

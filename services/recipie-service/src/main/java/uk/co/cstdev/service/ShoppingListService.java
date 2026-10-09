@@ -15,6 +15,7 @@ import uk.co.cstdev.data.Recipe;
 import uk.co.cstdev.data.mealplan.ShoppingListAmount;
 import uk.co.cstdev.data.mealplan.ShoppingListBreakdownEntry;
 import uk.co.cstdev.data.mealplan.ShoppingListIngredient;
+import uk.co.cstdev.data.mealplan.ShoppingListPart;
 import uk.co.cstdev.data.mealplan.ShoppingListResponse;
 
 @ApplicationScoped
@@ -63,6 +64,7 @@ public class ShoppingListService {
         // matching normalised unit string, or a shared fixed-ratio SI family.
         Map<String, Double> totalsByGroup = new LinkedHashMap<>();
         Map<String, String> displayUnitByGroup = new LinkedHashMap<>();
+        Map<String, List<RawPart>> rawPartsByGroup = new LinkedHashMap<>();
 
         for (IngredientContribution contribution : contributions) {
             Ingredient ingredient = contribution.ingredient();
@@ -96,6 +98,10 @@ public class ShoppingListService {
                 amountInBaseUnit = ingredient.quantity;
             }
 
+            rawPartsByGroup.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(new RawPart(
+                    ingredient.quantity,
+                    normalizedUnit.isEmpty() ? null : normalizedUnit,
+                    amountInBaseUnit));
             totalsByGroup.merge(groupKey, amountInBaseUnit, Double::sum);
             displayUnitByGroup.putIfAbsent(groupKey, displayUnit);
         }
@@ -103,7 +109,8 @@ public class ShoppingListService {
         List<ShoppingListAmount> amounts = new ArrayList<>();
         for (Map.Entry<String, Double> group : totalsByGroup.entrySet()) {
             String unit = displayUnitByGroup.get(group.getKey());
-            amounts.add(new ShoppingListAmount((float) (double) group.getValue(), unit));
+            amounts.add(new ShoppingListAmount((float) (double) group.getValue(), unit,
+                    buildParts(rawPartsByGroup.get(group.getKey()))));
         }
 
         String displayName = chooseDisplayName(contributions);
@@ -114,6 +121,32 @@ public class ShoppingListService {
             displayName = normalizedName;
         }
         return new ShoppingListIngredient(displayName, amounts, breakdown);
+    }
+
+    /**
+     * Collapses contributions with identical quantity and unit into counted parts,
+     * sorted largest first by base-unit value. Returns an empty list when fewer
+     * than two contributions feed the total.
+     */
+    private List<ShoppingListPart> buildParts(List<RawPart> rawParts) {
+        if (rawParts == null || rawParts.size() < 2) {
+            return List.of();
+        }
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        Map<String, RawPart> representative = new LinkedHashMap<>();
+        for (RawPart raw : rawParts) {
+            String key = raw.quantity() + "|" + raw.unit();
+            counts.merge(key, 1, Integer::sum);
+            representative.putIfAbsent(key, raw);
+        }
+        List<ShoppingListPart> parts = new ArrayList<>();
+        representative.entrySet().stream()
+                .sorted(Comparator
+                        .<Map.Entry<String, RawPart>>comparingDouble(e -> -e.getValue().baseValue())
+                        .thenComparing(e -> e.getValue().unit() == null ? "" : e.getValue().unit()))
+                .forEach(e -> parts.add(new ShoppingListPart(
+                        e.getValue().quantity(), e.getValue().unit(), counts.get(e.getKey()))));
+        return parts;
     }
 
     /**
@@ -147,6 +180,9 @@ public class ShoppingListService {
         }
 
         return bestKey == null ? null : representativeByLowerCase.get(bestKey);
+    }
+
+    private record RawPart(float quantity, String unit, double baseValue) {
     }
 
     private record IngredientContribution(Recipe recipe, Ingredient ingredient) {

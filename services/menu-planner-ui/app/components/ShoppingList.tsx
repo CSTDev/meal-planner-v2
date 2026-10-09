@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ShoppingListIngredient, ShoppingListResponse } from '@/types/recipe';
+import { ShoppingListAmount, ShoppingListIngredient, ShoppingListResponse } from '@/types/recipe';
 
 interface ShoppingListProps {
     data: ShoppingListResponse;
@@ -17,11 +17,25 @@ function formatAmount(quantity: number | null, unit: string | null): string {
     return unit ? `${roundedQuantity} ${unit}` : `${roundedQuantity}`;
 }
 
+function formatAmountWithSplit(amount: ShoppingListAmount): string {
+    const total = formatAmount(amount.quantity, amount.unit);
+    if (!total || !amount.parts || amount.parts.length === 0) {
+        return total;
+    }
+    const split = amount.parts
+        .map((part) => {
+            const text = formatAmount(part.quantity, part.unit);
+            return part.count > 1 ? `${part.count} x ${text}` : text;
+        })
+        .join(' + ');
+    return `${total} (${split})`;
+}
+
 function IngredientRow({ ingredient }: { ingredient: ShoppingListIngredient }) {
     const [expanded, setExpanded] = useState(false);
 
     const amountsText = ingredient.amounts
-        .map((amount) => formatAmount(amount.quantity, amount.unit))
+        .map((amount) => formatAmountWithSplit(amount))
         .filter(Boolean)
         .join(' + ');
 
