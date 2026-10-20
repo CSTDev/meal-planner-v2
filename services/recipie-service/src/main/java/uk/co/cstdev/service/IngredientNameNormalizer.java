@@ -1,9 +1,17 @@
 package uk.co.cstdev.service;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Normalises ingredient names for deduplication purposes:
@@ -15,7 +23,46 @@ import java.util.List;
  */
 public final class IngredientNameNormalizer {
 
+    private static final String RESOURCE_DIR = "/ingredient-matching/";
+
+    /** word -> singular form (identity mapping for words that must stay unchanged). */
+    private static final Map<String, String> SINGULAR_EXCEPTIONS = loadSingularExceptions();
+
     private IngredientNameNormalizer() {
+    }
+
+    /** Reads a data file, dropping blank lines and # comments. */
+    private static List<String> readDataLines(String fileName) {
+        try (InputStream in = IngredientNameNormalizer.class.getResourceAsStream(RESOURCE_DIR + fileName)) {
+            if (in == null) {
+                throw new IllegalStateException("Missing resource " + RESOURCE_DIR + fileName);
+            }
+            BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+            List<String> lines = new ArrayList<>();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String trimmed = line.trim().toLowerCase();
+                if (!trimmed.isEmpty() && !trimmed.startsWith("#")) {
+                    lines.add(trimmed);
+                }
+            }
+            return lines;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static Map<String, String> loadSingularExceptions() {
+        Map<String, String> map = new HashMap<>();
+        for (String line : readDataLines("singulariser-exceptions.txt")) {
+            int eq = line.indexOf('=');
+            if (eq < 0) {
+                map.put(line, line);
+            } else {
+                map.put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
+            }
+        }
+        return map;
     }
 
     public static String normalize(String rawName) {
@@ -55,6 +102,10 @@ public final class IngredientNameNormalizer {
     }
 
     private static String singularize(String word) {
+        String exception = SINGULAR_EXCEPTIONS.get(word);
+        if (exception != null) {
+            return exception;
+        }
         if (word.length() < 4) {
             return word;
         }

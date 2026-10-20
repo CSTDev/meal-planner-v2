@@ -1,0 +1,26 @@
+# Words the suffix-based singulariser handles wrongly.
+# "word"            -> word is left unchanged
+# "word = singular" -> word is folded to the given singular form
+# Lines starting with # and blank lines are ignored. Add a corpus entry with any change.
+
+# Irregulars
+leaves = leaf
+loaves = loaf
+halves = half
+
+# Plurals the suffix rules would mangle (must fold to the same key as the singular)
+chillies = chilli
+chilies = chili
+cookies = cookie
+brownies = brownie
+pies = pie
+quiches = quiche
+brioches = brioche
+
+# Words that look plural but are not
+molasses
+hummus
+couscous
+asparagus
+swiss
+watercress
