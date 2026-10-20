@@ -3,6 +3,7 @@ package uk.co.cstdev.service;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -42,6 +43,22 @@ public class RecipeServiceTest {
         assertDoesNotThrow(() -> recipeService.addRecipe(newRecipe(url), userId));
 
         assertEquals(1, recipeService.getRecipesForUser(userId).size());
+    }
+
+    @Test
+    void getRecipesForUserReturnsRecipesSortedAlphabeticallyByTitleIgnoringCase() {
+        UUID userId = UUID.randomUUID();
+        recipeService.addRecipe(titled("Cherry Tart", "https://example.com/1"), userId);
+        recipeService.addRecipe(titled("apple pie", "https://example.com/2"), userId);
+        recipeService.addRecipe(titled("Banana Bread", "https://example.com/3"), userId);
+
+        List<String> titles = recipeService.getRecipesForUser(userId).stream().map(r -> r.title).toList();
+
+        assertEquals(List.of("apple pie", "Banana Bread", "Cherry Tart"), titles);
+    }
+
+    private Recipe titled(String title, String url) {
+        return Recipe.Builder.recipe().title(title).url(url).servings(2).build();
     }
 
     private Recipe newRecipe(String url) {

@@ -16,7 +16,7 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
     EntityManager em;
 
     public List<Recipe> findByUserId(UUID userId) {
-        return list("scrapedByUserId", userId);
+        return list("scrapedByUserId = ?1 order by lower(title), id", userId);
     }
 
     /**
