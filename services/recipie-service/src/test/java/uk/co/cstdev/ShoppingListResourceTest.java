@@ -191,7 +191,7 @@ public class ShoppingListResourceTest {
 
         assertEquals(3, ingredients.size());
         long eggLines = ingredients.stream()
-                .filter(i -> String.valueOf(i.get("name")).endsWith("egg"))
+                .filter(i -> String.valueOf(i.get("name")).toLowerCase().contains("egg"))
                 .count();
         assertEquals(1, eggLines);
         assertNotNull(findIngredient(ingredients, "chicken breast"));

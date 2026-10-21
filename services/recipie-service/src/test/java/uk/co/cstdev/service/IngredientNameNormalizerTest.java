@@ -37,6 +37,9 @@ public class IngredientNameNormalizerTest {
         assertEquals("couscous", IngredientNameNormalizer.normalize("couscous"));
         assertEquals("watercress", IngredientNameNormalizer.normalize("watercress"));
         assertEquals("swiss", IngredientNameNormalizer.normalize("swiss"));
+        for (String word : new String[] {"cress", "citrus", "lemongrass", "gas", "glass"}) {
+            assertEquals(word, IngredientNameNormalizer.normalize(word));
+        }
         assertEquals("leaf", IngredientNameNormalizer.normalize("leaves"));
         assertEquals("loaf", IngredientNameNormalizer.normalize("loaves"));
         assertEquals(IngredientNameNormalizer.normalize("cookie"), IngredientNameNormalizer.normalize("cookies"));
@@ -71,6 +74,9 @@ public class IngredientNameNormalizerTest {
                     throw new IllegalStateException("Corpus line before section header: " + line);
                 }
                 String[] parts = line.split("\\|");
+                if (parts.length != 2) {
+                    throw new IllegalStateException("Corpus line must be 'a | b': " + line);
+                }
                 String a = parts[0].trim();
                 String b = parts[1].trim();
                 boolean merge = shouldMerge;

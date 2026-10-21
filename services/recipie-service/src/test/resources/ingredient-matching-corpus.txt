@@ -32,6 +32,32 @@ brown rice | rice, brown
 bay leaves | bay leaf
 chillies | chilli
 cookies | cookie
+chilies | chili
+loaves | loaf
+halves | half
+pies | pie
+brownies | brownie
+brioches | brioche
+quiches | quiche
+# singulariser review: real ingredient plurals folded by the suffix rules
+tomatoes | tomato
+potatoes | potato
+peaches | peach
+radishes | radish
+cherries | cherry
+anchovies | anchovy
+olives | olive
+cloves | clove
+limes | lime
+lentils | lentil
+oats | oat
+grapes | grape
+mushrooms | mushroom
+sprouts | sprout
+pickles | pickle
+sauces | sauce
+herbs | herb
+peppers | pepper
 # combined
 large courgettes | zucchini
 chopped chick peas | chickpeas
