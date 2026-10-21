@@ -177,6 +177,33 @@ public class ShoppingListResourceTest {
             @Claim(key = "sub", value = USER_ID_STRING),
             @Claim(key = "email", value = "shopping-list-test@test.com")
     })
+    public void testDescriptorVariantsMergeButDifferentCutsStaySeparate() {
+        Recipe recipeA = persistRecipe("Recipe A",
+                new IngredientSpec("large egg", 2f, ""),
+                new IngredientSpec("chicken breast", 300f, "g"));
+        Recipe recipeB = persistRecipe("Recipe B",
+                new IngredientSpec("egg", 3f, ""),
+                new IngredientSpec("chicken thigh", 400f, "g"));
+        accept(recipeA);
+        accept(recipeB);
+
+        List<Map<String, Object>> ingredients = ingredientsOf(getShoppingList(mealPlan.id.toString()));
+
+        assertEquals(3, ingredients.size());
+        long eggLines = ingredients.stream()
+                .filter(i -> String.valueOf(i.get("name")).toLowerCase().contains("egg"))
+                .count();
+        assertEquals(1, eggLines);
+        assertNotNull(findIngredient(ingredients, "chicken breast"));
+        assertNotNull(findIngredient(ingredients, "chicken thigh"));
+    }
+
+    @Test
+    @TestSecurity(user = "testuser", roles = "authenticated")
+    @JwtSecurity(claims = {
+            @Claim(key = "sub", value = USER_ID_STRING),
+            @Claim(key = "email", value = "shopping-list-test@test.com")
+    })
     public void testDisplayNamePicksMostFrequentWordingAcrossReorderedVariants() {
         // "brown rice" and "rice, brown" both normalize (token-sorted, descending)
         // to the dedup key "rice brown", which differs from either's natural

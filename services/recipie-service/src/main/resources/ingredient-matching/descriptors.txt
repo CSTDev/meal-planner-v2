@@ -1,0 +1,15 @@
+# Allow-list of words stripped before matching: size and prep words that never
+# change what you buy. ONLY words listed here are stripped.
+# Never add words that change the product (ground, dried, smoked, frozen, tinned,
+# canned, dark, white). "fresh" needs corpus justification (fresh vs dried herbs).
+# Every addition needs entries in src/test/resources/ingredient-matching-corpus.txt.
+large
+small
+medium
+boneless
+skinless
+chopped
+diced
+sliced
+finely
+roughly

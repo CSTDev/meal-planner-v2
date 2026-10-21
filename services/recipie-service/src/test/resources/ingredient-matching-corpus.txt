@@ -1,0 +1,78 @@
+# Shared corpus guarding the ingredient matching data files.
+# Format: "a | b" per line under a section header. Lines starting with # are ignored.
+# [should-merge]  pairs must normalise to the same key.
+# [must-not-merge] pairs must normalise to different keys (permanent protections).
+
+[should-merge]
+# synonyms
+chilli | chili
+yoghurt | yogurt
+courgette | zucchini
+coriander | cilantro
+aubergine | eggplant
+chick peas | chickpeas
+spring onion | scallion
+tinned tomatoes | canned tomatoes
+ground cumin | cumin
+# descriptors
+large egg | egg
+small egg | medium egg
+boneless chicken breast | chicken breast
+boneless skinless chicken breast | chicken breast
+chopped tomatoes | tomatoes
+finely chopped onion | onion
+roughly diced onion | onions
+# plurals and word order (regression)
+eggs | egg
+berries | berry
+boxes | box
+chicken breast | breast, chicken
+brown rice | rice, brown
+# irregulars
+bay leaves | bay leaf
+chillies | chilli
+cookies | cookie
+chilies | chili
+loaves | loaf
+halves | half
+pies | pie
+brownies | brownie
+brioches | brioche
+quiches | quiche
+# singulariser review: real ingredient plurals folded by the suffix rules
+tomatoes | tomato
+potatoes | potato
+peaches | peach
+radishes | radish
+cherries | cherry
+anchovies | anchovy
+olives | olive
+cloves | clove
+limes | lime
+lentils | lentil
+oats | oat
+grapes | grape
+mushrooms | mushroom
+sprouts | sprout
+pickles | pickle
+sauces | sauce
+herbs | herb
+peppers | pepper
+# combined
+large courgettes | zucchini
+chopped chick peas | chickpeas
+
+[must-not-merge]
+chicken breast | chicken thigh
+ground beef | beef
+dried basil | fresh basil
+dried basil | basil
+smoked paprika | paprika
+tinned tomatoes | tomatoes
+canned tomatoes | tomatoes
+frozen peas | peas
+dark chocolate | white chocolate
+lime | line
+ground cumin | cumin seed
+fresh coriander | dried coriander
+chicken breast | chicken

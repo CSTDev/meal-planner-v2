@@ -1,0 +1,13 @@
+# Explicit equivalences: "alias = canonical". Applied to whole (contiguous, in-order)
+# word phrases after singularising and descriptor stripping, before token-sorting.
+# Both sides are written in singular form. Longest alias wins; replacement is a
+# single pass (no chaining). Add a corpus entry with every line.
+chilli = chili
+yoghurt = yogurt
+courgette = zucchini
+coriander = cilantro
+aubergine = eggplant
+chick pea = chickpea
+spring onion = scallion
+tinned = canned
+ground cumin = cumin
