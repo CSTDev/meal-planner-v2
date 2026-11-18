@@ -42,4 +42,10 @@ describe('filterRecipes', () => {
     it('returns an empty list when nothing matches', () => {
         expect(filterRecipes(recipes, 'xyz')).toEqual([]);
     });
+
+    it('handles recipes with no ingredients', () => {
+        const bare = [recipe('4', 'Plain Toast', [])];
+        expect(filterRecipes(bare, 'toast').map(r => r.id)).toEqual(['4']);
+        expect(filterRecipes(bare, 'butter')).toEqual([]);
+    });
 });

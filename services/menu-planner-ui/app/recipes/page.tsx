@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import RecipeCard from '@/app/components/RecipeCard';
 import { Recipe } from '@/types/recipe';
 import { filterRecipes } from '@/lib/filterRecipes';
@@ -58,7 +58,7 @@ export default function RecipesPage() {
     }, []);
 
     const isSearching = query.trim() !== '';
-    const filtered = filterRecipes(recipes, query);
+    const filtered = useMemo(() => filterRecipes(recipes, query), [recipes, query]);
 
     return (
         <div className="py-12 px-4 sm:px-6 lg:px-8">

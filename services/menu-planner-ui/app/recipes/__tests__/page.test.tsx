@@ -3,9 +3,9 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import RecipesPage from '@/app/recipes/page';
 
 jest.mock('next/image', () => {
-    const MockImage = ({ src, alt, fill: _fill, ...props }: { src: string; alt: string; fill?: boolean; [key: string]: unknown }) => (
+    const MockImage = ({ src, alt }: { src: string; alt: string; [key: string]: unknown }) => (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={alt} {...props} />
+        <img src={src} alt={alt} />
     );
     MockImage.displayName = 'MockImage';
     return MockImage;
@@ -39,9 +39,9 @@ describe('RecipesPage search', () => {
 
     it('filters the grid as the user types, matching ingredients too', async () => {
         await renderLoaded();
-        search('b');
-        expect(screen.getByText('Pesto Pasta')).toBeInTheDocument();
-        expect(screen.queryByText('Tomato Soup')).not.toBeInTheDocument();
+        search('tomato');
+        expect(screen.getByText('Tomato Soup')).toBeInTheDocument();
+        expect(screen.queryByText('Pesto Pasta')).not.toBeInTheDocument();
         search('basil');
         expect(screen.getByText('Pesto Pasta')).toBeInTheDocument();
         expect(screen.queryByText('Chicken Curry')).not.toBeInTheDocument();
