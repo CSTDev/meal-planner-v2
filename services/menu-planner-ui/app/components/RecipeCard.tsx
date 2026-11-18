@@ -27,6 +27,7 @@ export default function RecipeCard({
                         src={recipe.imageUrl}
                         alt={recipe.title}
                         fill
+                        loading="lazy"
                         className="object-cover"
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                     />

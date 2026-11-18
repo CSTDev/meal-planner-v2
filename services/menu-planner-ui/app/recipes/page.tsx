@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import RecipeCard from '@/app/components/RecipeCard';
 import { Recipe } from '@/types/recipe';
+import { filterRecipes } from '@/lib/filterRecipes';
 
 interface RecipeApiResponse {
     id: string;
@@ -43,6 +44,7 @@ export default function RecipesPage() {
     const [recipes, setRecipes] = useState<Recipe[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [query, setQuery] = useState('');
 
     useEffect(() => {
         fetch('/api/recipes')
@@ -55,6 +57,9 @@ export default function RecipesPage() {
             .finally(() => setIsLoading(false));
     }, []);
 
+    const isSearching = query.trim() !== '';
+    const filtered = filterRecipes(recipes, query);
+
     return (
         <div className="py-12 px-4 sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto">
@@ -63,6 +68,19 @@ export default function RecipesPage() {
                     <p className="mt-2 text-sm text-gray-600">
                         Recipes you have added to your collection
                     </p>
+                    <input
+                        type="search"
+                        aria-label="Search recipes"
+                        placeholder="Search by title or ingredient"
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        className="mt-4 w-full max-w-md rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                    />
+                    {isSearching && recipes.length > 0 && (
+                        <p className="mt-2 text-sm text-gray-600">
+                            {filtered.length} of {recipes.length} recipes
+                        </p>
+                    )}
                 </div>
 
                 {isLoading && (
@@ -88,9 +106,22 @@ export default function RecipesPage() {
                     </div>
                 )}
 
-                {!isLoading && recipes.length > 0 && (
+                {!isLoading && recipes.length > 0 && filtered.length === 0 && (
+                    <div className="text-center py-12 text-gray-500">
+                        <p className="text-lg">No recipes match &quot;{query.trim()}&quot;</p>
+                        <button
+                            type="button"
+                            onClick={() => setQuery('')}
+                            className="mt-3 text-sm text-blue-600 hover:underline"
+                        >
+                            Clear search
+                        </button>
+                    </div>
+                )}
+
+                {!isLoading && filtered.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {recipes.map(recipe => (
+                        {filtered.map(recipe => (
                             <RecipeCard
                                 key={recipe.id}
                                 recipe={recipe}
