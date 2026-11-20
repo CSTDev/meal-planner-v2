@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MealPlanView from '@/app/components/MealPlanView';
 import { MealPlan } from '@/types/recipe';
@@ -690,5 +690,107 @@ describe('MealPlanView empty plan state', () => {
 
         expect(mealPlansApi.addRecipeToMealPlan).toHaveBeenCalledWith('plan-1', 'recipe-3');
         expect(screen.getByText(/1 of 1 accepted/i)).toBeInTheDocument();
+    });
+});
+
+describe('MealPlanView start over', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    function renderView(plan: MealPlan = mockMealPlan) {
+        const onReset = jest.fn();
+        render(<MealPlanView mealPlan={plan} onMealPlanUpdated={jest.fn()} onReset={onReset} />);
+        return onReset;
+    }
+
+    it('shows a Save / Discard dialog on a populated plan and does not navigate until a choice is made', async () => {
+        const user = userEvent.setup();
+        const onReset = renderView();
+
+        await user.click(screen.getByRole('button', { name: /start over/i }));
+
+        const dialog = screen.getByRole('dialog');
+        expect(within(dialog).getByRole('button', { name: /^save$/i })).toBeInTheDocument();
+        expect(within(dialog).getByRole('button', { name: /^discard$/i })).toBeInTheDocument();
+        expect(onReset).not.toHaveBeenCalled();
+        expect(mealPlansApi.deleteMealPlan).not.toHaveBeenCalled();
+    });
+
+    it('Save navigates without making a delete call', async () => {
+        const user = userEvent.setup();
+        const onReset = renderView();
+
+        await user.click(screen.getByRole('button', { name: /start over/i }));
+        await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+        expect(onReset).toHaveBeenCalledTimes(1);
+        expect(mealPlansApi.deleteMealPlan).not.toHaveBeenCalled();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('Discard deletes the plan and then navigates', async () => {
+        const user = userEvent.setup();
+        (mealPlansApi.deleteMealPlan as jest.Mock).mockResolvedValue(undefined);
+        const onReset = renderView();
+
+        await user.click(screen.getByRole('button', { name: /start over/i }));
+        await user.click(screen.getByRole('button', { name: /^discard$/i }));
+
+        await waitFor(() => expect(onReset).toHaveBeenCalledTimes(1));
+        expect(mealPlansApi.deleteMealPlan).toHaveBeenCalledWith('plan-1');
+    });
+
+    it('discards an empty plan silently with no dialog', async () => {
+        const user = userEvent.setup();
+        (mealPlansApi.deleteMealPlan as jest.Mock).mockResolvedValue(undefined);
+        const onReset = renderView({ ...mockMealPlan, recipes: [] });
+
+        await user.click(screen.getByRole('button', { name: /start over/i }));
+
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        await waitFor(() => expect(onReset).toHaveBeenCalledTimes(1));
+        expect(mealPlansApi.deleteMealPlan).toHaveBeenCalledWith('plan-1');
+    });
+
+    it('stays on the page with an inline error when the discard fails, and allows retry', async () => {
+        const user = userEvent.setup();
+        (mealPlansApi.deleteMealPlan as jest.Mock)
+            .mockRejectedValueOnce(new Error('Failed to delete meal plan'))
+            .mockResolvedValueOnce(undefined);
+        const onReset = renderView();
+
+        await user.click(screen.getByRole('button', { name: /start over/i }));
+        await user.click(screen.getByRole('button', { name: /^discard$/i }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(/failed to discard/i);
+        expect(onReset).not.toHaveBeenCalled();
+
+        await user.click(screen.getByRole('button', { name: /^discard$/i }));
+        await waitFor(() => expect(onReset).toHaveBeenCalledTimes(1));
+    });
+
+    it('shows an inline error and does not navigate when an empty plan fails to discard', async () => {
+        const user = userEvent.setup();
+        (mealPlansApi.deleteMealPlan as jest.Mock).mockRejectedValue(new Error('boom'));
+        const onReset = renderView({ ...mockMealPlan, recipes: [] });
+
+        await user.click(screen.getByRole('button', { name: /start over/i }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(/failed to discard/i);
+        expect(onReset).not.toHaveBeenCalled();
+    });
+
+    it('lets the user choose Save after a failed discard', async () => {
+        const user = userEvent.setup();
+        (mealPlansApi.deleteMealPlan as jest.Mock).mockRejectedValue(new Error('boom'));
+        const onReset = renderView();
+
+        await user.click(screen.getByRole('button', { name: /start over/i }));
+        await user.click(screen.getByRole('button', { name: /^discard$/i }));
+        await screen.findByRole('alert');
+        await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+        expect(onReset).toHaveBeenCalledTimes(1);
     });
 });

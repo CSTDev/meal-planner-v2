@@ -1223,4 +1223,102 @@ public class MealPlanResourceTest {
         }
 
         // End Add Recipe Tests
+
+        // Delete Meal Plan Tests
+
+        @Transactional
+        void insertInteraction(UUID userId, UUID recipeId, UUID mealPlanId, FeedbackAction action) {
+                new UserRecipeInteraction(userId, recipeId, mealPlanId, action.name()).persistAndFlush();
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testDeleteMealPlanRemovesPlanItsRecipesAndItsInteractions() {
+                MealPlan plan = createMealPlanForUser(USER_ID);
+                UUID recipeId = recipes.get(0).id;
+                acceptRecipeInPlan(plan.id, recipeId);
+                mealPlanRecipeRepository.claim(plan.id, recipes.get(1).id, "OFFERED");
+                insertInteraction(USER_ID, recipeId, plan.id, FeedbackAction.ACCEPTED);
+                insertInteraction(USER_ID, recipes.get(2).id, plan.id, FeedbackAction.REJECTED);
+
+                given()
+                                .when()
+                                .delete("/api/meal-plans/%s".formatted(plan.id))
+                                .then()
+                                .statusCode(204);
+
+                assertNull(MealPlan.findById(plan.id));
+                assertEquals(0, mealPlanRecipeRepository.listByMealPlan(plan.id).size());
+                assertEquals(0, UserRecipeInteraction.count("mealPlanId", plan.id));
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testDeleteMealPlanLeavesAnotherPlansDataUntouched() {
+                MealPlan plan = createMealPlanForUser(USER_ID);
+                MealPlan otherPlan = createMealPlanForUser(USER_ID);
+                UUID recipeId = recipes.get(0).id;
+                acceptRecipeInPlan(plan.id, recipeId);
+                acceptRecipeInPlan(otherPlan.id, recipeId);
+                insertInteraction(USER_ID, recipeId, plan.id, FeedbackAction.ACCEPTED);
+                insertInteraction(USER_ID, recipeId, otherPlan.id, FeedbackAction.ACCEPTED);
+
+                given()
+                                .when()
+                                .delete("/api/meal-plans/%s".formatted(plan.id))
+                                .then()
+                                .statusCode(204);
+
+                assertNotNull(MealPlan.findById(otherPlan.id));
+                assertEquals(1, mealPlanRecipeRepository.listByMealPlan(otherPlan.id).size());
+                assertEquals(1, UserRecipeInteraction.count("mealPlanId", otherPlan.id));
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testDeleteMealPlanOfAnotherUserReturns403AndDeletesNothing() {
+                User otherUser = createSecondUser();
+                MealPlan otherPlan = createMealPlanForUser(otherUser.id);
+                UUID recipeId = recipes.get(0).id;
+                acceptRecipeInPlan(otherPlan.id, recipeId);
+                insertInteraction(otherUser.id, recipeId, otherPlan.id, FeedbackAction.ACCEPTED);
+
+                given()
+                                .when()
+                                .delete("/api/meal-plans/%s".formatted(otherPlan.id))
+                                .then()
+                                .statusCode(403);
+
+                assertNotNull(MealPlan.findById(otherPlan.id));
+                assertEquals(1, mealPlanRecipeRepository.listByMealPlan(otherPlan.id).size());
+                assertEquals(1, UserRecipeInteraction.count("mealPlanId", otherPlan.id));
+        }
+
+        @Test
+        @TestSecurity(user = "testuser", roles = "authenticated")
+        @JwtSecurity(claims = {
+                        @Claim(key = "sub", value = USER_ID_STRING),
+                        @Claim(key = "email", value = "me@test.com")
+        })
+        public void testDeleteUnknownMealPlanReturns404() {
+                given()
+                                .when()
+                                .delete("/api/meal-plans/%s".formatted(UUID.randomUUID()))
+                                .then()
+                                .statusCode(404);
+        }
+
+        // End Delete Meal Plan Tests
 }

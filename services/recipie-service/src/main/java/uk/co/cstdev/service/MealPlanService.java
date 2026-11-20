@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.jboss.logging.Logger;
 import uk.co.cstdev.data.MealPlan;
@@ -48,6 +49,27 @@ public class MealPlanService {
         claimService.claimNew(mealPlan.id, userUuid, request.numRecipes(), OFFERED);
 
         return mealPlan;
+    }
+
+    /**
+     * Hard-deletes a plan and everything hanging off it, in one transaction
+     * and in dependency order: its recommendation-history interactions, its
+     * recipe rows, then the plan itself. If any step fails the whole
+     * transaction rolls back and nothing is deleted. If a new table gains a
+     * foreign key to meal_plans, add its delete here, before the plan row.
+     */
+    @Transactional
+    public void deleteMealPlan(UUID mealPlanId) {
+        EntityManager em = MealPlan.getEntityManager();
+        em.createNativeQuery("DELETE FROM user_recipe_interactions WHERE meal_plan_id = ?1")
+                .setParameter(1, mealPlanId)
+                .executeUpdate();
+        em.createNativeQuery("DELETE FROM meal_plan_recipes WHERE meal_plan_id = ?1")
+                .setParameter(1, mealPlanId)
+                .executeUpdate();
+        em.createNativeQuery("DELETE FROM meal_plans WHERE id = ?1")
+                .setParameter(1, mealPlanId)
+                .executeUpdate();
     }
 
     /**

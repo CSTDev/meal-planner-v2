@@ -17,6 +17,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -190,6 +191,35 @@ public class MealPlanResource {
                 }
 
                 return Response.ok(mealPlanService.getMealPlanState(mealPlan)).build();
+        }
+
+        @DELETE
+        @Path("/{id}")
+        @Operation(summary = "Discard a meal plan", description = "Hard-deletes the meal plan along with its recipes and its recipe interactions, in a single transaction")
+        @APIResponse(responseCode = "204", description = "Meal plan deleted")
+        @APIResponse(responseCode = "401", description = "Unauthorized")
+        @APIResponse(responseCode = "403", description = "Meal plan does not belong to the authenticated user")
+        @APIResponse(responseCode = "404", description = "Meal plan not found")
+        public Response deleteMealPlan(@PathParam("id") String id) {
+                String userId = jwt.getSubject();
+
+                MealPlan mealPlan;
+                try {
+                        mealPlan = MealPlan.findById(UUID.fromString(id));
+                } catch (IllegalArgumentException e) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan == null) {
+                        return Response.status(Response.Status.NOT_FOUND).build();
+                }
+
+                if (mealPlan.userId == null || !mealPlan.userId.toString().equals(userId)) {
+                        return Response.status(Response.Status.FORBIDDEN).build();
+                }
+
+                mealPlanService.deleteMealPlan(mealPlan.id);
+                return Response.noContent().build();
         }
 
         @GET

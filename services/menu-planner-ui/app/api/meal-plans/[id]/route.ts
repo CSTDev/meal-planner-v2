@@ -51,3 +51,49 @@ export async function GET(
         );
     }
 }
+
+export async function DELETE(
+    request: NextRequest,
+    context: { params: Promise<{ id: string }> }
+) {
+    try {
+        const supabase = await createClient();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError || !session) {
+            return NextResponse.json(
+                { message: 'Unauthorized - No valid session' },
+                { status: 401 }
+            );
+        }
+
+        const params = await context.params;
+
+        const response = await fetch(
+            `${API_GATEWAY_URL}/api/meal-plans/${params.id}`,
+            {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                },
+            }
+        );
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Backend error:', errorText);
+            return NextResponse.json(
+                { message: 'Failed to delete meal plan' },
+                { status: response.status }
+            );
+        }
+
+        return new NextResponse(null, { status: 204 });
+    } catch (error) {
+        console.error('Error deleting meal plan:', error);
+        return NextResponse.json(
+            { message: 'Failed to delete meal plan' },
+            { status: 500 }
+        );
+    }
+}

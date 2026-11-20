@@ -242,3 +242,18 @@ export async function getShoppingList(
 
     return response.json();
 }
+
+/**
+ * Hard-deletes a meal plan (and its recipes and interactions). A 404 means
+ * the plan is already gone, which is the outcome the caller wanted, so it
+ * counts as success.
+ */
+export async function deleteMealPlan(mealPlanId: string): Promise<void> {
+    const response = await fetch(`/api/meal-plans/${mealPlanId}`, {
+        method: 'DELETE',
+    });
+
+    if (!response.ok && response.status !== 404) {
+        throw new Error('Failed to delete meal plan');
+    }
+}
