@@ -4,7 +4,7 @@ import { useState } from 'react';
 import RecipeCard from '@/app/components/RecipeCard';
 import RecipeSelector from '@/app/components/RecipeSelector';
 import ShoppingListOverlay from '@/app/components/ShoppingListOverlay';
-import { recordFeedback, getShoppingList, addRecipeToMealPlan } from '@/lib/api/mealPlans';
+import { recordFeedback, getShoppingList, addRecipeToMealPlan, deleteMealPlan } from '@/lib/api/mealPlans';
 import { MealPlan, Recipe, ShoppingListResponse } from '@/types/recipe';
 
 interface MealPlanViewProps {
@@ -55,9 +55,45 @@ export default function MealPlanView({
         requestedCount !== undefined &&
         originalSlotCount < requestedCount;
 
+    // Start Over: a populated plan asks Save / Discard first; an empty one
+    // has nothing worth keeping so it is discarded straight away.
+    const [isStartOverDialogOpen, setIsStartOverDialogOpen] = useState(false);
+    const [isDiscarding, setIsDiscarding] = useState(false);
+    const [discardError, setDiscardError] = useState<string | null>(null);
+
     const acceptedCount = acceptedRecipeIds.size;
     const totalCount = mealPlan.recipes.length;
     const isEmpty = totalCount === 0;
+
+    const handleDiscard = async () => {
+        setDiscardError(null);
+        setIsDiscarding(true);
+        try {
+            await deleteMealPlan(mealPlan.id);
+            setIsStartOverDialogOpen(false);
+            onReset();
+        } catch (error) {
+            console.error('Failed to discard meal plan:', error);
+            setDiscardError('Failed to discard the meal plan. Please try again.');
+        } finally {
+            setIsDiscarding(false);
+        }
+    };
+
+    const handleStartOver = () => {
+        setDiscardError(null);
+        if (isEmpty) {
+            void handleDiscard();
+        } else {
+            setIsStartOverDialogOpen(true);
+        }
+    };
+
+    const handleSave = () => {
+        setIsStartOverDialogOpen(false);
+        setDiscardError(null);
+        onReset();
+    };
 
     const handleReject = async (recipe: Recipe, index: number) => {
         setAcceptError(null);
@@ -230,6 +266,11 @@ export default function MealPlanView({
                             {acceptError}
                         </p>
                     )}
+                    {discardError && !isStartOverDialogOpen && (
+                        <p className="text-sm text-red-600 mt-1" role="alert">
+                            {discardError}
+                        </p>
+                    )}
                     {addRecipeError && (
                         <p className="text-sm text-red-600 mt-1" role="alert">
                             {addRecipeError}
@@ -249,7 +290,8 @@ export default function MealPlanView({
                         </button>
                     )}
                     <button
-                        onClick={onReset}
+                        onClick={handleStartOver}
+                        disabled={isDiscarding}
                         className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                     >
                         Start Over
@@ -313,6 +355,48 @@ export default function MealPlanView({
                     )}
                 </div>
             </div>
+
+            {isStartOverDialogOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/40" />
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="start-over-title"
+                        className="relative w-full max-w-md bg-white rounded-lg shadow-xl p-6 space-y-4"
+                    >
+                        <h3 id="start-over-title" className="text-xl font-bold text-gray-900">
+                            Save this meal plan?
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                            Save keeps it in your recent plans. Discard deletes it permanently.
+                        </p>
+                        {discardError && (
+                            <p className="text-sm text-red-600" role="alert">
+                                {discardError}
+                            </p>
+                        )}
+                        <div className="flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={handleSave}
+                                disabled={isDiscarding}
+                                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                            >
+                                Save
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDiscard}
+                                disabled={isDiscarding}
+                                className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                            >
+                                Discard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <ShoppingListOverlay
                 isOpen={isShoppingListOpen}
