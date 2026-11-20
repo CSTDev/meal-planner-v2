@@ -55,7 +55,8 @@ public class MealPlanService {
      * Hard-deletes a plan and everything hanging off it, in one transaction
      * and in dependency order: its recommendation-history interactions, its
      * recipe rows, then the plan itself. If any step fails the whole
-     * transaction rolls back and nothing is deleted.
+     * transaction rolls back and nothing is deleted. If a new table gains a
+     * foreign key to meal_plans, add its delete here, before the plan row.
      */
     @Transactional
     public void deleteMealPlan(UUID mealPlanId) {
